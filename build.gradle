@@ -3,7 +3,6 @@ plugins {
     id 'org.openjfx.javafxplugin' version '0.0.13'
 }
 
-group = 'com.yourdomain'
 version = '1.0'
 
 repositories {
@@ -22,5 +21,6 @@ javafx {
 }
 
 application {
-    mainClass = 'Main'
+    mainClass = 'com.nicholasburczyk.packupdater.Main'
 }
+
