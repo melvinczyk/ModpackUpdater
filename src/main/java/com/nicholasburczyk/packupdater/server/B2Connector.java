@@ -2,7 +2,6 @@ package com.nicholasburczyk.packupdater.server;
 
 import java.net.URI;
 import java.nio.file.Paths;
-import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -34,15 +33,6 @@ public class B2Connector {
                         AwsBasicCredentials.create(keyId, appKey)))
                 .endpointOverride(new URI(ENDPOINT_URL))
                 .build();) {
-
-            // Get the list of buckets
-            List<Bucket> buckets = b2.listBuckets().buckets();
-
-            // Iterate through list, printing each bucket's name
-            System.out.println("Buckets in account:");
-            for (Bucket bucket : buckets) {
-                System.out.println(bucket.name());
-            }
 
             ListObjectsV2Request request = ListObjectsV2Request.builder().bucket("GroidPack-Season3").build();
             ListObjectsV2Response result = b2.listObjectsV2(request);
