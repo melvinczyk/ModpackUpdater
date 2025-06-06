@@ -12,7 +12,7 @@ public class ConfigManager {
     private final File configFile = new File("src/main/resources/com/nicholasburczyk/packupdater/config/settings.json");
 
     private ConfigManager() {
-        loadConfig();
+        reloadConfig();
     }
 
     private static final class InstanceHolder {
@@ -23,7 +23,7 @@ public class ConfigManager {
         return InstanceHolder.instance;
     }
 
-    private void loadConfig() {
+    public void reloadConfig() {
         try {
             if (configFile.exists()) {
                 config = mapper.readValue(configFile, Config.class);

@@ -30,9 +30,13 @@
                 <Region HBox.hgrow="ALWAYS"/>
 
                 <!-- Admin Login Button -->
-                <Button fx:id="adminLoginButton" text="🔐 Admin"
+                <Button fx:id="adminLoginButton" text="Admin"
                         style="-fx-background-color: #FF6B35; -fx-text-fill: white; -fx-background-radius: 15; -fx-font-size: 11px; -fx-padding: 6 12;"
                         onAction="#showAdminLogin"/>
+
+                <Button fx:id="reconnectButton" text="Reconnect"
+                        style="-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-background-radius: 15; -fx-font-size: 11px; -fx-padding: 6 12;"
+                        onAction="#reconnectToClientAction"/>
 
                 <!-- Status Indicator -->
                 <HBox spacing="8" alignment="CENTER_RIGHT"
@@ -152,13 +156,6 @@
             </VBox>
 
             <Region HBox.hgrow="ALWAYS"/>
-
-            <!-- Server Info -->
-            <HBox spacing="8" alignment="CENTER_RIGHT">
-                <Label text="🌐" style="-fx-text-fill: #888888; -fx-font-size: 12px;"/>
-                <Label fx:id="serverInfoLabel" text="Server: Connecting..."
-                       style="-fx-text-fill: #b0b0b0; -fx-font-size: 11px;"/>
-            </HBox>
         </HBox>
     </bottom>
 

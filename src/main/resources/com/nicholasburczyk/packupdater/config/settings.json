@@ -2,6 +2,7 @@
   "curseforge_path" : "/Users/nicholasburczyk/Documents/curseforge/minecraft/Instances",
   "modpack_path_overrides" : [ ],
   "endpoint" : "https://s3.us-east-005.backblazeb2.com",
-  "keyID" : "",
-  "appKey" : ""
+  "autoUpdate" : false,
+  "keyID" : "005d09ffb61168e0000000006",
+  "appKey" : "K005UqEe9zoa9A2OL6Za+4sNZG5u9sk"
 }

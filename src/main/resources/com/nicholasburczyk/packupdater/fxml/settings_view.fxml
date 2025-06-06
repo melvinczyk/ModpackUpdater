@@ -12,7 +12,8 @@
 
     <!-- Header Section -->
     <top>
-        <VBox spacing="10" style="-fx-background-color: #3c3c3c; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 5, 0, 0, 2);">
+        <VBox spacing="10"
+              style="-fx-background-color: #3c3c3c; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 5, 0, 0, 2);">
             <padding>
                 <Insets top="20" right="20" bottom="15" left="20"/>
             </padding>
@@ -33,14 +34,17 @@
 
     <!-- Main Content -->
     <center>
-        <ScrollPane fitToWidth="true" style="-fx-background: #2b2b2b; -fx-background-color: transparent; -fx-border-color: transparent;">
+        <ScrollPane fitToWidth="true"
+                    style="-fx-background: #2b2b2b; -fx-background-color: transparent; -fx-border-color: transparent;">
             <VBox spacing="25" style="-fx-background-color: transparent;">
                 <padding>
                     <Insets top="25" right="25" bottom="25" left="25"/>
                 </padding>
 
-                <VBox spacing="15" style="-fx-background-color: #3a3a3a; -fx-background-radius: 12; -fx-padding: 20; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 3, 0, 0, 1);">
-                    <Label text="CurseForge Configuration" style="-fx-text-fill: #e0e0e0; -fx-font-size: 18px; -fx-font-weight: bold;">
+                <VBox spacing="15"
+                      style="-fx-background-color: #3a3a3a; -fx-background-radius: 12; -fx-padding: 20; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 3, 0, 0, 1);">
+                    <Label text="CurseForge Configuration"
+                           style="-fx-text-fill: #e0e0e0; -fx-font-size: 18px; -fx-font-weight: bold;">
                         <font>
                             <Font name="System Bold" size="18.0"/>
                         </font>
@@ -50,14 +54,17 @@
                            style="-fx-text-fill: #b0b0b0; -fx-font-size: 12px;" wrapText="true"/>
 
                     <VBox spacing="8">
-                        <Label text="Instances Folder Path:" style="-fx-text-fill: #cccccc; -fx-font-size: 13px; -fx-font-weight: bold;"/>
+                        <Label text="Instances Folder Path:"
+                               style="-fx-text-fill: #cccccc; -fx-font-size: 13px; -fx-font-weight: bold;"/>
                         <HBox spacing="10" alignment="CENTER_LEFT">
-                            <TextField fx:id="instancesPathField" promptText="e.g., C:\Users\YourName\curseforge\minecraft\Instances"
+                            <TextField fx:id="instancesPathField"
+                                       promptText="e.g., C:\Users\YourName\curseforge\minecraft\Instances"
                                        HBox.hgrow="ALWAYS" prefHeight="35"
                                        style="-fx-background-color: #4a4a4a; -fx-text-fill: white; -fx-prompt-text-fill: #888888; -fx-background-radius: 6; -fx-border-color: transparent; -fx-font-size: 12px;"/>
                             <Button fx:id="browseButton" text="📂 Browse"
                                     style="-fx-background-color: #5a5a5a; -fx-text-fill: white; -fx-background-radius: 6; -fx-font-size: 12px; -fx-padding: 8 16;"
-                                    prefWidth="100"/>
+                                    prefWidth="100"
+                                    onAction="#browseForFolder"/>
                         </HBox>
 
                         <!-- Status indicator -->
@@ -65,13 +72,19 @@
                             <Label fx:id="pathStatusIcon" text="⚠️" style="-fx-font-size: 14px;"/>
                             <Label fx:id="pathStatusLabel" text="Please select your CurseForge instances folder"
                                    style="-fx-text-fill: #FF9800; -fx-font-size: 11px;"/>
+                            <Label fx:id="pathStatusIconFalsePath" text="⚠️" style="-fx-font-size: 14px;"/>
+                            <Label fx:id="pathStatusLabelFalsePath"
+                                   text="Not the correct 'curseforge/minecraft/Instances' folder."
+                                   style="-fx-text-fill: #FF9800; -fx-font-size: 11px;"/>
                         </HBox>
                     </VBox>
                 </VBox>
 
                 <!-- Server Configuration Section -->
-                <VBox spacing="15" style="-fx-background-color: #3a3a3a; -fx-background-radius: 12; -fx-padding: 20; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 3, 0, 0, 1);">
-                    <Label text="🌐 Server Configuration" style="-fx-text-fill: #e0e0e0; -fx-font-size: 18px; -fx-font-weight: bold;">
+                <VBox spacing="15"
+                      style="-fx-background-color: #3a3a3a; -fx-background-radius: 12; -fx-padding: 20; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 3, 0, 0, 1);">
+                    <Label text="🌐 Server Configuration"
+                           style="-fx-text-fill: #e0e0e0; -fx-font-size: 18px; -fx-font-weight: bold;">
                         <font>
                             <Font name="System Bold" size="18.0"/>
                         </font>
@@ -82,73 +95,41 @@
 
                     <VBox spacing="12">
                         <VBox spacing="6">
-                            <Label text="Server URL:" style="-fx-text-fill: #cccccc; -fx-font-size: 13px; -fx-font-weight: bold;"/>
-                            <TextField fx:id="serverUrlField" promptText="https://your-server.com/modpacks"
+                            <Label text="Server URL:"
+                                   style="-fx-text-fill: #cccccc; -fx-font-size: 13px; -fx-font-weight: bold;"/>
+                            <TextField fx:id="serverUrlField" promptText="https://whatever-nick-said-it-was.com"
                                        style="-fx-background-color: #4a4a4a; -fx-text-fill: white; -fx-prompt-text-fill: #888888; -fx-background-radius: 6; -fx-border-color: transparent; -fx-font-size: 12px;"
                                        prefHeight="35"/>
                         </VBox>
-
                         <VBox spacing="6">
-                            <Label text="Update Check Interval:" style="-fx-text-fill: #cccccc; -fx-font-size: 13px; -fx-font-weight: bold;"/>
-                            <HBox spacing="10" alignment="CENTER_LEFT">
-                                <ComboBox fx:id="updateIntervalCombo" prefWidth="150"
-                                          style="-fx-background-color: #4a4a4a; -fx-text-fill: white; -fx-background-radius: 6;"/>
-                                <Label text="How often to check for updates automatically"
-                                       style="-fx-text-fill: #888888; -fx-font-size: 11px;"/>
-                            </HBox>
+                            <Label text="Key ID:"
+                                   style="-fx-text-fill: #cccccc; -fx-font-size: 13px; -fx-font-weight: bold;"/>
+                            <TextField fx:id="serverKeyIdField" promptText="Key ID: "
+                                       style="-fx-background-color: #4a4a4a; -fx-text-fill: white; -fx-prompt-text-fill: #888888; -fx-background-radius: 6; -fx-border-color: transparent; -fx-font-size: 12px;"
+                                       prefHeight="35"/>
                         </VBox>
-
-                        <CheckBox fx:id="autoUpdateCheckBox" text="Automatically download updates"
-                                  style="-fx-text-fill: #cccccc; -fx-font-size: 12px;"/>
+                        <VBox spacing="6">
+                            <Label text="Application Key:"
+                                   style="-fx-text-fill: #cccccc; -fx-font-size: 13px; -fx-font-weight: bold;"/>
+                            <TextField fx:id="serverAppKeyField" promptText="App Key: "
+                                       style="-fx-background-color: #4a4a4a; -fx-text-fill: white; -fx-prompt-text-fill: #888888; -fx-background-radius: 6; -fx-border-color: transparent; -fx-font-size: 12px;"
+                                       prefHeight="35"/>
+                        </VBox>
                     </VBox>
                 </VBox>
-
-                <!-- Available Modpacks Section -->
-                <VBox spacing="15" style="-fx-background-color: #3a3a3a; -fx-background-radius: 12; -fx-padding: 20; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 3, 0, 0, 1);">
-                    <Label text="📦 Available Modpacks" style="-fx-text-fill: #e0e0e0; -fx-font-size: 18px; -fx-font-weight: bold;">
-                        <font>
-                            <Font name="System Bold" size="18.0"/>
-                        </font>
-                    </Label>
-
-                    <Label text="Select which modpacks you want to install and manage. Only selected modpacks will appear in your main dashboard."
-                           style="-fx-text-fill: #b0b0b0; -fx-font-size: 12px;" wrapText="true"/>
-
-                    <VBox fx:id="modpackSelectionContainer" spacing="8">
-                        <!-- Sample modpack options - these would be populated dynamically -->
-                        <HBox spacing="12" alignment="CENTER_LEFT" style="-fx-background-color: #4a4a4a; -fx-background-radius: 6; -fx-padding: 12;">
-                            <CheckBox fx:id="atm9CheckBox" text="All The Mods 9"
-                                      style="-fx-text-fill: #cccccc; -fx-font-size: 13px;"/>
-                            <Region HBox.hgrow="ALWAYS"/>
-                            <Label text="Latest: v0.2.46" style="-fx-text-fill: #888888; -fx-font-size: 11px;"/>
-                        </HBox>
-                    </VBox>
-
-                    <Label fx:id="selectionStatusLabel" text="⚠️ Please configure your instances folder path first"
-                           style="-fx-text-fill: #FF9800; -fx-font-size: 11px;"/>
-                </VBox>
-
                 <!-- General Settings Section -->
-                <VBox spacing="15" style="-fx-background-color: #3a3a3a; -fx-background-radius: 12; -fx-padding: 20; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 3, 0, 0, 1);">
-                    <Label text="🔧 General Settings" style="-fx-text-fill: #e0e0e0; -fx-font-size: 18px; -fx-font-weight: bold;">
+                <VBox spacing="15"
+                      style="-fx-background-color: #3a3a3a; -fx-background-radius: 12; -fx-padding: 20; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 3, 0, 0, 1);">
+                    <Label text="🔧 General Settings"
+                           style="-fx-text-fill: #e0e0e0; -fx-font-size: 18px; -fx-font-weight: bold;">
                         <font>
                             <Font name="System Bold" size="18.0"/>
                         </font>
                     </Label>
 
                     <VBox spacing="12">
-                        <CheckBox fx:id="startWithSystemCheckBox" text="Start with system"
+                        <CheckBox fx:id="autoUpdateCheckBox" text="Automatically download updates"
                                   style="-fx-text-fill: #cccccc; -fx-font-size: 12px;"/>
-                        <CheckBox fx:id="minimizeToTrayCheckBox" text="Minimize to system tray"
-                                  style="-fx-text-fill: #cccccc; -fx-font-size: 12px;"/>
-                        <CheckBox fx:id="showNotificationsCheckBox" text="Show update notifications"
-                                  style="-fx-text-fill: #cccccc; -fx-font-size: 12px;" selected="true"/>
-
-                        <VBox spacing="6">
-                            <Label text="Theme:" style="-fx-text-fill: #cccccc; -fx-font-size: 13px; -fx-font-weight: bold;"/>
-                            <ComboBox fx:id="themeComboBox" prefWidth="150"
-                                      style="-fx-background-color: #4a4a4a; -fx-text-fill: white; -fx-background-radius: 6;"/>
-                        </VBox>
                     </VBox>
                 </VBox>
             </VBox>
@@ -157,16 +138,16 @@
 
     <!-- Footer with Action Buttons -->
     <bottom>
-        <HBox spacing="15" alignment="CENTER_RIGHT" style="-fx-background-color: #3c3c3c; -fx-padding: 20; -fx-border-color: #555555; -fx-border-width: 1 0 0 0;">
-            <Button fx:id="resetButton" text="Reset to Defaults"
-                    style="-fx-background-color: #666666; -fx-text-fill: white; -fx-background-radius: 6; -fx-font-size: 12px; -fx-padding: 8 16;"/>
-            <Button fx:id="cancelButton" text="Cancel"
-                    style="-fx-background-color: #777777; -fx-text-fill: white; -fx-background-radius: 6; -fx-font-size: 12px; -fx-padding: 8 16;"
-                    onAction="#goToMain"/>
+        <HBox spacing="15" alignment="CENTER_RIGHT"
+              style="-fx-background-color: #3c3c3c; -fx-padding: 20; -fx-border-color: #555555; -fx-border-width: 1 0 0 0;">
+
+            <Label fx:id="saveStatusLabel" text="Settings saved successfully"
+                   visible="false"
+                   style="-fx-text-fill: #8BC34A; -fx-font-size: 12px; -fx-font-weight: bold;"/>
+            <Region HBox.hgrow="ALWAYS"/>
             <Button fx:id="saveButton" text="💾 Save Settings"
                     style="-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-background-radius: 6; -fx-font-size: 12px; -fx-padding: 8 16; -fx-font-weight: bold;"
                     onAction="#saveSettings"/>
         </HBox>
     </bottom>
-
 </BorderPane>
