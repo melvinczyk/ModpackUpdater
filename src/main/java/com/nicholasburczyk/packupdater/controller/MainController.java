@@ -3,6 +3,7 @@ package com.nicholasburczyk.packupdater.controller;
 import com.nicholasburczyk.packupdater.Main;
 import com.nicholasburczyk.packupdater.config.ConfigManager;
 import com.nicholasburczyk.packupdater.model.Config;
+import com.nicholasburczyk.packupdater.model.ModpackInfo;
 import com.nicholasburczyk.packupdater.server.B2ClientProvider;
 import com.nicholasburczyk.packupdater.server.ConnectionStatus;
 import com.nicholasburczyk.packupdater.server.ModpackRegistry;
@@ -24,6 +25,8 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 public class MainController {
 
@@ -63,6 +66,11 @@ public class MainController {
         Task<ConnectionStatus> connectionTask = getConnectionStatusTask();
         new Thread(connectionTask).start();
 
+        Task<Void> fetchModpacksTask = getTask();
+        new Thread(fetchModpacksTask).start();
+    }
+
+    private Task<Void> getTask() {
         Task<Void> fetchModpacksTask = getVoidTask();
         fetchModpacksTask.setOnSucceeded(e -> {
             System.out.println("Successfully fetched modpack info.");
@@ -73,7 +81,7 @@ public class MainController {
                 totalLocalModpacksLabel.setText(String.valueOf(ModpackRegistry.getLocalModpacks().size()));
             });
         });
-        new Thread(fetchModpacksTask).start();
+        return fetchModpacksTask;
     }
 
     @FXML
@@ -151,8 +159,22 @@ public class MainController {
             dialogStage.setScene(new Scene(root));
             controller.setDialogStage(dialogStage);
 
-            List<String> serverModpackNames = new ArrayList<>(ModpackRegistry.getServerModpacks().keySet());
-            controller.setServerModpacks(serverModpackNames);
+            // Get local modpack IDs (roots)
+            Map<String, ModpackInfo> localModpacks = ModpackRegistry.getLocalModpacks();
+            Set<String> localModpackIds = localModpacks.keySet();
+
+            // Get all server modpack IDs
+            Map<String, ModpackInfo> serverModpacks = ModpackRegistry.getServerModpacks();
+            List<String> filteredServerModpacks = new ArrayList<>();
+
+            for (String serverModpackId : serverModpacks.keySet()) {
+                // Only add if local modpacks do NOT contain the same id (root)
+                if (!localModpackIds.contains(serverModpackId)) {
+                    filteredServerModpacks.add(serverModpackId);
+                }
+            }
+
+            controller.setServerModpacks(filteredServerModpacks);
 
             dialogStage.showAndWait();
 
@@ -166,6 +188,7 @@ public class MainController {
             ex.printStackTrace();
         }
     }
+
 
 
     private Task<Void> getVoidTask() {
