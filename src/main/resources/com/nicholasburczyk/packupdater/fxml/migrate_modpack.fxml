@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox xmlns:fx="http://javafx.com/fxml"
+      fx:controller="com.nicholasburczyk.packupdater.controller.MigrateModpackController"
+      spacing="15" style="-fx-background-color: #2b2b2b;">
+    <padding>
+        <Insets top="20" right="20" bottom="20" left="20"/>
+    </padding>
+
+    <HBox spacing="10" alignment="CENTER_LEFT">
+        <Label text="Modpack Path:" style="-fx-text-fill: #e0e0e0; -fx-font-size: 13px;" />
+        <TextField fx:id="pathTextField" prefWidth="300" />
+        <Button text="Browse" onAction="#browseFolder" />
+    </HBox>
+
+    <VBox spacing="5" alignment="CENTER_LEFT">
+        <Label text="Select what Modpack this is:" style="-fx-text-fill: #e0e0e0; -fx-font-size: 13px;" />
+        <ComboBox fx:id="serverModpackComboBox" prefWidth="300" />
+    </VBox>
+
+    <Region VBox.vgrow="ALWAYS" />
+
+    <HBox spacing="15" alignment="CENTER_RIGHT">
+        <Button text="Cancel" onAction="#cancelAction" />
+        <Button text="OK" onAction="#okAction" />
+    </HBox>
+
+</VBox>

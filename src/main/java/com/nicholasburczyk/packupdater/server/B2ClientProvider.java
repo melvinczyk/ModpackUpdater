@@ -1,15 +1,22 @@
 package com.nicholasburczyk.packupdater.server;
 
-import com.nicholasburczyk.packupdater.config.Config;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nicholasburczyk.packupdater.model.Config;
 import com.nicholasburczyk.packupdater.config.ConfigManager;
+import com.nicholasburczyk.packupdater.model.ModpackInfo;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.ListBucketsRequest;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
+import java.io.InputStream;
 import java.net.URI;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -25,12 +32,7 @@ public class B2ClientProvider {
                     System.err.println("Can't find a region in the endpoint URL: " + config.getEndpoint());
                 }
                 String region = matcher.group(1);
-                client = S3Client.builder()
-                        .region(Region.of(region))
-                        .credentialsProvider(StaticCredentialsProvider.create(
-                                AwsBasicCredentials.create(config.getKeyID(), config.getAppKey())))
-                        .endpointOverride(new URI(config.getEndpoint()))
-                        .build();
+                client = S3Client.builder().region(Region.of(region)).credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create(config.getKeyID(), config.getAppKey()))).endpointOverride(new URI(config.getEndpoint())).build();
             } catch (Exception e) {
                 throw new RuntimeException("Failed to initialize S3Client");
             }
@@ -49,12 +51,7 @@ public class B2ClientProvider {
             }
 
             String region = matcher.group(1);
-            client = S3Client.builder()
-                    .region(Region.of(region))
-                    .credentialsProvider(StaticCredentialsProvider.create(
-                            AwsBasicCredentials.create(config.getKeyID(), config.getAppKey())))
-                    .endpointOverride(new URI(config.getEndpoint()))
-                    .build();
+            client = S3Client.builder().region(Region.of(region)).credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create(config.getKeyID(), config.getAppKey()))).endpointOverride(new URI(config.getEndpoint())).build();
 
             return true;
         } catch (Exception e) {
@@ -62,7 +59,6 @@ public class B2ClientProvider {
             return false; // Prevent crash
         }
     }
-
 
     public static ConnectionStatus checkConnection() {
         try {
@@ -75,6 +71,28 @@ public class B2ClientProvider {
         } catch (Exception e) {
             System.err.println("Unexpected error during S3 check: " + e.getMessage());
             return new ConnectionStatus(false, "UnexpectedError");
+        }
+    }
+
+    public static void fetchAndStoreModpackInfo(String bucketName) {
+        try {
+            GetObjectRequest request = GetObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key("modpacks.json")
+                    .build();
+            InputStream stream = getClient().getObject(request);
+            ObjectMapper mapper = new ObjectMapper();
+
+            Map<String, ModpackInfo> modpacks = mapper.readValue(
+                    stream, new TypeReference<>() {
+                    });
+            ModpackRegistry.setServerModpacks(modpacks);
+            System.out.println("Fetched modpacks: " + modpacks.keySet());
+        } catch (NoSuchKeyException e) {
+            System.err.println("modpacks.json not found in bucket: " + bucketName);
+        } catch (Exception e) {
+            System.err.println("Failed to fetch modpacks.json: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 

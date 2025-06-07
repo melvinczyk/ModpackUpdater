@@ -2,6 +2,7 @@
 
 <?import javafx.geometry.Insets?>
 <?import javafx.scene.control.*?>
+<?import javafx.scene.image.ImageView?>
 <?import javafx.scene.layout.*?>
 <?import javafx.scene.text.*?>
 
@@ -51,7 +52,8 @@
             <HBox spacing="15" alignment="CENTER_LEFT">
                 <Button fx:id="refreshButton" text="Refresh"
                         style="-fx-background-color: #5a5a5a; -fx-text-fill: white; -fx-background-radius: 8; -fx-font-size: 12px; -fx-padding: 8 16;"
-                        prefWidth="110"/>
+                        prefWidth="110"
+                        onAction="#refreshModpackList"/>
                 <Button fx:id="updateAllButton" text="Update All"
                         style="-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-background-radius: 8; -fx-font-size: 12px; -fx-padding: 8 16;"
                         prefWidth="120"/>
@@ -97,50 +99,35 @@
                 </VBox>
             </HBox>
 
-            <!-- Modpack List -->
-            <VBox spacing="15">
-                <Label text="📦 Your Modpacks"
-                       style="-fx-text-fill: #e0e0e0; -fx-font-size: 18px; -fx-font-weight: bold;">
-                    <font>
-                        <Font name="System Bold" size="18.0"/>
-                    </font>
-                </Label>
+            <!-- Your Modpacks Section split into two columns -->
+            <HBox spacing="30" alignment="TOP_CENTER">
+                <!-- Server Modpacks Column -->
+                <VBox spacing="10" HBox.hgrow="ALWAYS">
+                    <Label text="☁️ Server Modpacks"
+                           style="-fx-text-fill: #e0e0e0; -fx-font-size: 18px; -fx-font-weight: bold;"/>
+                    <ScrollPane fitToWidth="true" style="-fx-background-color: transparent;">
+                        <VBox fx:id="serverModpacksContainer" spacing="10"
+                              style="-fx-background-color: #2b2b2b;"/>
+                    </ScrollPane>
+                </VBox>
 
-                <!-- Search/Filter Bar -->
-                <HBox spacing="15" alignment="CENTER_LEFT"
-                      style="-fx-background-color: #3a3a3a; -fx-background-radius: 8; -fx-padding: 12;">
-                    <TextField fx:id="searchField" promptText="🔍 Search modpacks..."
-                               prefWidth="300"
-                               style="-fx-background-color: #4a4a4a; -fx-text-fill: white; -fx-prompt-text-fill: #999999; -fx-background-radius: 6; -fx-border-color: transparent;"/>
-                    <ComboBox fx:id="filterComboBox" promptText="Filter by status"
-                              prefWidth="180"
-                              style="-fx-background-color: #4a4a4a; -fx-text-fill: white; -fx-background-radius: 6;"/>
-                </HBox>
+                <!-- Local Modpacks Column with button on right -->
+                <VBox spacing="10" HBox.hgrow="ALWAYS">
+                    <HBox alignment="CENTER_LEFT" spacing="10">
+                        <Label text="🖥️ Local Modpacks"
+                               style="-fx-text-fill: #e0e0e0; -fx-font-size: 18px; -fx-font-weight: bold;"/>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Button fx:id="migrateOldButton" text="Migrate Old Modpacks"
+                                style="-fx-background-color: #FF9800; -fx-text-fill: white; -fx-background-radius: 8; -fx-font-size: 12px; -fx-padding: 6 12;"
+                                onAction="#migrateOldModpacksAction"/>
+                    </HBox>
+                    <ScrollPane fitToWidth="true" style="-fx-background-color: transparent;">
+                        <VBox fx:id="localModpacksContainer" spacing="10"
+                              style="-fx-background-color: #2b2b2b;"/>
+                    </ScrollPane>
+                </VBox>
+            </HBox>
 
-                <!-- Modpack ScrollPane -->
-                <ScrollPane fx:id="modpackScrollPane" fitToWidth="true" prefHeight="250"
-                            style="-fx-background: #2b2b2b; -fx-background-color: transparent; -fx-border-color: transparent;">
-                    <VBox fx:id="modpackContainer" spacing="8"
-                          style="-fx-background-color: transparent; -fx-padding: 5;">
-
-                    </VBox>
-                </ScrollPane>
-            </VBox>
-
-            <!-- New Modpacks Section (appears when new packs are detected) -->
-            <VBox fx:id="newModpacksSection" spacing="15" visible="false" managed="false"
-                  style="-fx-background-color: #1B5E20; -fx-background-radius: 12; -fx-padding: 20; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 4, 0, 0, 2);">
-                <Label text="🎉 New Modpacks Available!"
-                       style="-fx-text-fill: #C8E6C9; -fx-font-size: 16px; -fx-font-weight: bold;">
-                    <font>
-                        <Font name="System Bold" size="16.0"/>
-                    </font>
-                </Label>
-                <VBox fx:id="newModpacksContainer" spacing="8"/>
-                <Button text="Add All New Modpacks"
-                        style="-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-background-radius: 8; -fx-font-size: 13px; -fx-padding: 10 20;"
-                        prefWidth="200"/>
-            </VBox>
         </VBox>
     </center>
 

@@ -1,14 +1,81 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<?import java.lang.*?>
-<?import java.util.*?>
-<?import javafx.scene.*?>
-<?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.text.Font?>
 
-<AnchorPane xmlns="http://javafx.com/javafx"
-            xmlns:fx="http://javafx.com/fxml"
+<BorderPane xmlns:fx="http://javafx.com/fxml"
             fx:controller="com.nicholasburczyk.packupdater.controller.AdminController"
-            prefHeight="400.0" prefWidth="600.0">
+            prefHeight="600.0" prefWidth="800.0"
+            style="-fx-background-color: #2b2b2b;">
 
-</AnchorPane>
+    <!-- Top: Header Bar -->
+    <top>
+        <HBox spacing="15" alignment="CENTER_LEFT"
+              style="-fx-background-color: #3c3c3c; -fx-padding: 15 20; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 3, 0, 0, 1);">
+            <Label text="Admin Panel"
+                   style="-fx-text-fill: #e0e0e0; -fx-font-size: 20px; -fx-font-weight: bold;">
+                <font>
+                    <Font name="System Bold" size="20.0"/>
+                </font>
+            </Label>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Button text="Back to Main"
+                    onAction="#goToMain"
+                    style="-fx-background-color: #5a5a5a; -fx-text-fill: white; -fx-background-radius: 8; -fx-font-size: 12px; -fx-padding: 6 16;"/>
+        </HBox>
+    </top>
+
+    <!-- Center: Admin Controls -->
+    <center>
+        <VBox spacing="25" alignment="TOP_LEFT" style="-fx-padding: 30; -fx-background-color: #2b2b2b;">
+
+            <!-- Modpack Selector -->
+            <HBox spacing="15" alignment="CENTER_LEFT">
+                <Label text="Modpack:"
+                       style="-fx-text-fill: #e0e0e0; -fx-font-size: 14px;"/>
+                <ComboBox fx:id="modpackSelector" promptText="Select modpack"
+                          style="-fx-background-color: #4a4a4a; -fx-text-fill: white; -fx-background-radius: 6;"/>
+            </HBox>
+
+            <!-- Upload Buttons -->
+            <HBox spacing="20">
+                <Button text="Upload File"
+                        fx:id="uploadFileButton"
+                        style="-fx-background-color: #FF6B35; -fx-text-fill: white; -fx-background-radius: 8; -fx-font-size: 13px; -fx-padding: 8 16;"/>
+                <Button text="Upload Folder"
+                        fx:id="uploadFolderButton"
+                        style="-fx-background-color: #FF6B35; -fx-text-fill: white; -fx-background-radius: 8; -fx-font-size: 13px; -fx-padding: 8 16;"/>
+            </HBox>
+
+            <!-- Difference Section -->
+            <VBox spacing="10" style="-fx-background-color: #3a3a3a; -fx-background-radius: 12; -fx-padding: 20;">
+                <Label text="🗂️ Changes Between Local and Server"
+                       style="-fx-text-fill: #e0e0e0; -fx-font-size: 16px; -fx-font-weight: bold;">
+                    <font>
+                        <Font name="System Bold" size="16.0"/>
+                    </font>
+                </Label>
+
+                <ScrollPane fitToWidth="true" prefHeight="250"
+                            style="-fx-background: #2b2b2b; -fx-background-color: transparent; -fx-border-color: transparent;">
+                    <VBox fx:id="diffContainer" spacing="10" style="-fx-padding: 10;">
+                        <!-- This will be populated with comparison results -->
+                        <Label text="No differences loaded."
+                               style="-fx-text-fill: #bbbbbb; -fx-font-size: 12px;"/>
+                    </VBox>
+                </ScrollPane>
+            </VBox>
+        </VBox>
+    </center>
+
+    <!-- Bottom: Status Bar -->
+    <bottom>
+        <HBox spacing="10" alignment="CENTER_LEFT"
+              style="-fx-background-color: #3c3c3c; -fx-padding: 10 20;">
+            <Label fx:id="statusLabel" text="Ready"
+                   style="-fx-text-fill: #999999; -fx-font-size: 12px;"/>
+        </HBox>
+    </bottom>
+</BorderPane>
