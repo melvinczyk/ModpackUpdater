@@ -1,4 +1,4 @@
-package com.nicholasburczyk.packupdater.config;
+package com.nicholasburczyk.packupdater.model;
 
 public class Config {
     private String curseforge_path;
@@ -7,6 +7,7 @@ public class Config {
     private boolean autoUpdate;
     private String keyID;
     private String appKey;
+    private String bucketName;
 
     public void setCurseforge_path(String path) {
         this.curseforge_path = path;
@@ -32,6 +33,10 @@ public class Config {
         this.appKey = appKey;
     }
 
+    public void setBucketName(String name) {
+        this.bucketName = name;
+    }
+
     public String getCurseforge_path() {
         return this.curseforge_path;
     }
@@ -54,5 +59,9 @@ public class Config {
 
     public boolean getAutoUpdate() {
         return this.autoUpdate;
+    }
+
+    public String getBucketName() {
+        return this.bucketName;
     }
 }

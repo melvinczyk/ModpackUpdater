@@ -10,6 +10,6 @@ public class ViewLoader {
                 ViewLoader.class.getResource("/com/nicholasburczyk/packupdater/fxml/" + fxmlFile)
         );
         Parent root = loader.load();
-        return new Scene(root, 800, 600);
+        return new Scene(root, 1000, 600);
     }
 }

@@ -1,7 +1,7 @@
 package com.nicholasburczyk.packupdater.controller;
 
 import com.nicholasburczyk.packupdater.Main;
-import com.nicholasburczyk.packupdater.config.Config;
+import com.nicholasburczyk.packupdater.model.Config;
 import com.nicholasburczyk.packupdater.config.ConfigManager;
 import javafx.animation.PauseTransition;
 import javafx.event.ActionEvent;

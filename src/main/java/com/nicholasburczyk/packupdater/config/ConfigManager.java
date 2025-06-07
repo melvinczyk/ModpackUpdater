@@ -1,6 +1,7 @@
 package com.nicholasburczyk.packupdater.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nicholasburczyk.packupdater.model.Config;
 
 import java.io.File;
 import java.io.IOException;
