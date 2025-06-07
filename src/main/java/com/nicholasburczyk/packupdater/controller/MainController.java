@@ -39,6 +39,12 @@ public class MainController {
     private VBox serverModpacksContainer;
     @FXML
     private VBox localModpacksContainer;
+    @FXML
+    private Label totalServerModpacksLabel;
+    @FXML
+    private Label updatesAvailableLabel;
+    @FXML
+    private Label totalLocalModpacksLabel;
 
     Config config = ConfigManager.getInstance().getConfig();
 
@@ -63,6 +69,8 @@ public class MainController {
             Platform.runLater(() -> {
                 ModpackUIHelper.populateModpackList(serverModpacksContainer, ModpackRegistry.getServerModpacks(), false);
                 ModpackUIHelper.populateModpackList(localModpacksContainer, ModpackRegistry.getLocalModpacks(), true);
+                totalServerModpacksLabel.setText(String.valueOf(ModpackRegistry.getServerModpacks().size()));
+                totalLocalModpacksLabel.setText(String.valueOf(ModpackRegistry.getLocalModpacks().size()));
             });
         });
         new Thread(fetchModpacksTask).start();
@@ -124,6 +132,8 @@ public class MainController {
             });
         });
         new Thread(fetchModpacksTask).start();
+        totalServerModpacksLabel.setText(String.valueOf(ModpackRegistry.getServerModpacks().size()));
+        totalLocalModpacksLabel.setText(String.valueOf(ModpackRegistry.getLocalModpacks().size()));
     }
 
     @FXML
