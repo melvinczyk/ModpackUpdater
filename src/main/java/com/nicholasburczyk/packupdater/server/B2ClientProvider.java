@@ -16,6 +16,7 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import java.io.InputStream;
 import java.net.URI;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -47,7 +48,7 @@ public class B2ClientProvider {
             Matcher matcher = Pattern.compile("https://s3\\.([a-z0-9-]+)\\.backblazeb2\\.com").matcher(config.getEndpoint());
             if (!matcher.find()) {
                 System.err.println("Can't find a region in the endpoint URL: " + config.getEndpoint());
-                return false; // Early exit, invalid endpoint
+                return false;
             }
 
             String region = matcher.group(1);
@@ -55,8 +56,8 @@ public class B2ClientProvider {
 
             return true;
         } catch (Exception e) {
-            e.printStackTrace(); // Optional: log more detail
-            return false; // Prevent crash
+            e.printStackTrace();
+            return false;
         }
     }
 
@@ -76,18 +77,50 @@ public class B2ClientProvider {
 
     public static void fetchAndStoreModpackInfo(String bucketName) {
         try {
-            GetObjectRequest request = GetObjectRequest.builder()
+            GetObjectRequest modpacksRequest = GetObjectRequest.builder()
                     .bucket(bucketName)
                     .key("modpacks.json")
                     .build();
-            InputStream stream = getClient().getObject(request);
+            InputStream modpacksStream = getClient().getObject(modpacksRequest);
             ObjectMapper mapper = new ObjectMapper();
 
-            Map<String, ModpackInfo> modpacks = mapper.readValue(
-                    stream, new TypeReference<>() {
-                    });
+            Map<String, String> modpackRoots = mapper.readValue(modpacksStream, new TypeReference<>() {});
+
+            Map<String, ModpackInfo> modpacks = new HashMap<>();
+
+            for (Map.Entry<String, String> entry : modpackRoots.entrySet()) {
+                String root = entry.getValue();
+                String displayName = entry.getKey();
+
+                String manifestKey = root + "/manifest.json";
+
+                try {
+                    GetObjectRequest manifestRequest = GetObjectRequest.builder()
+                            .bucket(bucketName)
+                            .key(manifestKey)
+                            .build();
+                    InputStream manifestStream = getClient().getObject(manifestRequest);
+
+                    ModpackInfo info = mapper.readValue(manifestStream, ModpackInfo.class);
+
+                    info.setRoot(root);
+                    if (info.getDisplayName() == null || info.getDisplayName().isBlank()) {
+                        info.setDisplayName(displayName);
+                    }
+
+                    modpacks.put(root, info);
+
+                } catch (NoSuchKeyException e) {
+                    System.err.println("manifest.json not found for modpack root: " + root);
+                } catch (Exception e) {
+                    System.err.println("Failed to fetch manifest.json for modpack root " + root + ": " + e.getMessage());
+                    e.printStackTrace();
+                }
+            }
+
             ModpackRegistry.setServerModpacks(modpacks);
             System.out.println("Fetched modpacks: " + modpacks.keySet());
+
         } catch (NoSuchKeyException e) {
             System.err.println("modpacks.json not found in bucket: " + bucketName);
         } catch (Exception e) {
@@ -95,5 +128,6 @@ public class B2ClientProvider {
             e.printStackTrace();
         }
     }
+
 
 }

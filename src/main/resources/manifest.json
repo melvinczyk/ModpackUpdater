@@ -1,0 +1,21 @@
+{
+  "modpackId": "ServerV3",
+  "displayName": "ServerV3 (Guns)",
+  "author": "Nicholas Burczyk",
+  "description": "Gun themed mod with machines",
+  "version": "1.0.0",
+  "minecraftVersion": "1.20.1",
+  "modLoader": "Forge",
+  "modLoaderVersion": "47.3.22",
+  "created": "2025-06-06T20:13:52Z",
+  "lastUpdated": "2025-06-06T20:13:52Z",
+  "folders": ["mods", "config", "kubejs", "datapacks"],
+  "changelog": [
+    {
+      "version": "1.0.0",
+      "timestamp": "2025-06-06T20:13:52Z",
+      "message": "Initial release of the modpack.",
+      "operations": []
+    }
+  ]
+}
