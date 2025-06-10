@@ -1,5 +1,6 @@
 package com.nicholasburczyk.packupdater.controller;
 
+import com.nicholasburczyk.packupdater.GUI;
 import com.nicholasburczyk.packupdater.Main;
 import com.nicholasburczyk.packupdater.model.Config;
 import com.nicholasburczyk.packupdater.config.ConfigManager;
@@ -52,7 +53,7 @@ public class SettingsController implements Initializable {
 
     @FXML
     private void goToMain(ActionEvent event) throws Exception {
-        Main.setRoot("main_view.fxml");
+        GUI.setRoot("main_view.fxml");
     }
 
     @Override
