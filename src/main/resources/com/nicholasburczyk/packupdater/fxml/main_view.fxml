@@ -10,7 +10,6 @@
             prefHeight="600.0" prefWidth="800.0"
             style="-fx-background-color: #2b2b2b;">
 
-    <!-- Header Section -->
     <top>
         <VBox spacing="10"
               style="-fx-background-color: #3c3c3c; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 5, 0, 0, 2);">
@@ -18,7 +17,6 @@
                 <Insets top="20" right="20" bottom="15" left="20"/>
             </padding>
 
-            <!-- Title and Status Bar -->
             <HBox alignment="CENTER_LEFT" spacing="15">
                 <Label text="Modpack Manager"
                        style="-fx-text-fill: #e0e0e0; -fx-font-size: 24px; -fx-font-weight: bold;">
@@ -29,7 +27,6 @@
 
                 <Region HBox.hgrow="ALWAYS"/>
 
-                <!-- Admin Login Button -->
                 <Button fx:id="adminLoginButton" text="Admin"
                         style="-fx-background-color: #FF6B35; -fx-text-fill: white; -fx-background-radius: 15; -fx-font-size: 11px; -fx-padding: 6 12;"
                         onAction="#showAdminLogin"/>
@@ -37,8 +34,6 @@
                 <Button fx:id="reconnectButton" text="Reconnect"
                         style="-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-background-radius: 15; -fx-font-size: 11px; -fx-padding: 6 12;"
                         onAction="#reconnectToClientAction"/>
-
-                <!-- Status Indicator -->
                 <HBox spacing="8" alignment="CENTER_RIGHT"
                       style="-fx-background-color: #4a4a4a; -fx-background-radius: 15; -fx-padding: 8 12;">
                     <Label fx:id="connectionStatusLabel" text="Checking server..."
@@ -50,16 +45,16 @@
             <!-- Action Bar -->
             <HBox spacing="15" alignment="CENTER_LEFT">
                 <Button fx:id="refreshButton" text="Refresh"
-                        style="-fx-background-color: #5a5a5a; -fx-text-fill: white; -fx-background-radius: 8; -fx-font-size: 12px; -fx-padding: 8 16;"
+                        style="-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-background-radius: 8; -fx-font-size: 12px; -fx-padding: 8 16;"
                         prefWidth="110"
                         onAction="#refreshModpackList"/>
-                <Button fx:id="updateAllButton" text="Update All"
-                        style="-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-background-radius: 8; -fx-font-size: 12px; -fx-padding: 8 16;"
-                        prefWidth="120"/>
                 <Button fx:id="settingsButton" text="Settings"
                         style="-fx-background-color: #5a5a5a; -fx-text-fill: white; -fx-background-radius: 8; -fx-font-size: 12px; -fx-padding: 8 16;"
                         prefWidth="110"
                         onAction="#goToSettings"/>
+                <Button text="Help"
+                        style="-fx-background-color: #FF6B35; -fx-text-fill: white; -fx-background-radius: 8; -fx-font-size: 12px; -fx-padding: 8 16;"
+                        onAction="#goToHelp"/>
 
                 <Region HBox.hgrow="ALWAYS"/>
 
@@ -76,7 +71,6 @@
                 <Insets top="20" right="20" bottom="20" left="20"/>
             </padding>
 
-            <!-- Quick Stats -->
             <HBox spacing="30" alignment="CENTER"
                   style="-fx-background-color: #3a3a3a; -fx-background-radius: 12; -fx-padding: 20; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 3, 0, 0, 1);">
                 <VBox spacing="8" alignment="CENTER" style="-fx-min-width: 120;">
@@ -98,9 +92,7 @@
                 </VBox>
             </HBox>
 
-            <!-- Your Modpacks Section split into two columns -->
             <HBox spacing="30" alignment="TOP_CENTER">
-                <!-- Server Modpacks Column -->
                 <VBox spacing="10" HBox.hgrow="ALWAYS">
                     <Label text="☁️ Server Modpacks"
                            style="-fx-text-fill: #e0e0e0; -fx-font-size: 18px; -fx-font-weight: bold;"/>
@@ -110,10 +102,9 @@
                     </ScrollPane>
                 </VBox>
 
-                <!-- Local Modpacks Column with button on right -->
                 <VBox spacing="10" HBox.hgrow="ALWAYS">
                     <HBox alignment="CENTER_LEFT" spacing="10">
-                        <Label text="🖥️ Local Modpacks"
+                        <Label text="📁 Local Modpacks"
                                style="-fx-text-fill: #e0e0e0; -fx-font-size: 18px; -fx-font-weight: bold;"/>
                         <Region HBox.hgrow="ALWAYS"/>
                         <Button fx:id="migrateOldButton" text="Migrate Old Modpacks"
@@ -129,8 +120,6 @@
 
         </VBox>
     </center>
-
-    <!-- Footer -->
     <bottom>
         <HBox alignment="CENTER_LEFT" spacing="15"
               style="-fx-background-color: #3c3c3c; -fx-padding: 15 20; -fx-border-color: #555555; -fx-border-width: 1 0 0 0;">

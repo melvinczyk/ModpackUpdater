@@ -51,9 +51,6 @@ public class SettingsController implements Initializable {
     private Label pathStatusIconFalsePath;
 
     @FXML
-    private CheckBox autoUpdateCheckBox;
-
-    @FXML
     private void goToMain(ActionEvent event) throws Exception {
         Main.setRoot("main_view.fxml");
     }
@@ -85,8 +82,6 @@ public class SettingsController implements Initializable {
         if (config.getAppKey() != null && !config.getAppKey().isEmpty()) {
             serverAppKeyField.setText(config.getAppKey());
         }
-
-        autoUpdateCheckBox.setSelected(config.getAutoUpdate());
     }
 
     @FXML
@@ -100,7 +95,6 @@ public class SettingsController implements Initializable {
         config.setEndpoint(serverUrlField.getText());
         config.setKeyID(serverKeyIdField.getText());
         config.setAppKey(serverAppKeyField.getText());
-        config.setAutoUpdate(autoUpdateCheckBox.isSelected());
 
         ConfigManager.getInstance().saveConfig();
         ConfigManager.getInstance().reloadConfig();

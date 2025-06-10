@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.*?>
+
+<BorderPane xmlns:fx="http://javafx.com/fxml"
+            fx:controller="com.nicholasburczyk.packupdater.controller.HelpController"
+            prefHeight="600.0" prefWidth="800.0"
+            style="-fx-background-color: linear-gradient(to bottom, #2b2b2b, #1e1e1e);">
+
+    <top>
+        <HBox alignment="CENTER_LEFT"
+              style="-fx-background-color: linear-gradient(to right, #4a4a4a, #3c3c3c); -fx-padding: 20 25; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.4), 6, 0, 0, 3);">
+            <Label text="Help and Documentation"
+                   style="-fx-text-fill: linear-gradient(to right, #ffffff, #e8e8e8); -fx-font-size: 22px; -fx-font-weight: bold; -fx-font-family: 'Segoe UI', sans-serif;"/>
+        </HBox>
+    </top>
+
+    <!-- Main Content -->
+    <center>
+        <ScrollPane fitToWidth="true"
+                    style="-fx-background-color: transparent; -fx-background: transparent;"
+                    hbarPolicy="NEVER">
+            <VBox spacing="25" style="-fx-background-color: transparent;" prefWidth="750">
+                <padding>
+                    <Insets top="35" right="45" bottom="35" left="45"/>
+                </padding>
+
+                <VBox spacing="12"
+                      style="-fx-background-color: rgba(100, 181, 246, 0.1); -fx-background-radius: 12; -fx-padding: 20; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.15), 3, 0, 0, 1);">
+                    <Label text="📋 Overview"
+                           style="-fx-text-fill: #64B5F6; -fx-font-size: 20px; -fx-font-weight: bold; -fx-font-family: 'Segoe UI', sans-serif;"/>
+                    <Label wrapText="true"
+                           text="Use this to update your modpacks to be server ready. I no longer have to tell you explicitly what to download or change it will all be done here now."
+                           style="-fx-text-fill: #e5e5e5; -fx-font-size: 15px; -fx-line-spacing: 2; -fx-font-family: 'Segoe UI', sans-serif;"/>
+                </VBox>
+
+                <VBox spacing="15"
+                      style="-fx-background-color: rgba(255, 152, 0, 0.15); -fx-background-radius: 12; -fx-padding: 20; -fx-effect: dropshadow(gaussian, rgba(255,152,0,0.2), 3, 0, 0, 1); -fx-border-color: rgba(255, 152, 0, 0.3); -fx-border-width: 2; -fx-border-radius: 12;">
+                    <Label text="⚠️ Important Settings (PLEASE READ!!!!)"
+                           style="-fx-text-fill: #FFB74D; -fx-font-size: 20px; -fx-font-weight: bold; -fx-font-family: 'Segoe UI', sans-serif;"/>
+
+                    <VBox spacing="10"
+                          style="-fx-background-color: rgba(250, 19, 2, 0.15); -fx-background-radius: 8; -fx-padding: 15;">
+                        <Label wrapText="true"
+                               text="BEFORE YOU DO ANYTHING!!!!!!! YOU MUST PASS IN A CURSEFORGE INSTANCES PATH!!!"
+                               style="-fx-text-fill: #FF6B6B; -fx-font-size: 16px; -fx-font-weight: bold; -fx-font-family: 'Segoe UI', sans-serif;"/>
+                    </VBox>
+
+                    <VBox spacing="8">
+                        <Label wrapText="true"
+                               text="Go to Curseforge. Click the the three dots by the top search bar. Click open modding folder. This is what you will pass in here at Settings -> Instances Folder Path."
+                               style="-fx-text-fill: #e5e5e5; -fx-font-size: 15px; -fx-line-spacing: 2; -fx-font-family: 'Segoe UI', sans-serif;"/>
+                        <Label wrapText="true"
+                               text="Ask me for your Key ID and your Application Key. The Server URL should always be: https://s3.us-east-005.backblazeb2.com but if I change it you can update it."
+                               style="-fx-text-fill: #e5e5e5; -fx-font-size: 15px; -fx-line-spacing: 2; -fx-font-family: 'Segoe UI', sans-serif;"/>
+                    </VBox>
+                </VBox>
+
+                <VBox spacing="15"
+                      style="-fx-background-color: rgba(76, 175, 80, 0.1); -fx-background-radius: 12; -fx-padding: 20; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.15), 3, 0, 0, 1);">
+                    <Label text="📦 How To Add A Modpack"
+                           style="-fx-text-fill: #81C784; -fx-font-size: 20px; -fx-font-weight: bold; -fx-font-family: 'Segoe UI', sans-serif;"/>
+
+                    <VBox spacing="12">
+                        <HBox spacing="10" alignment="CENTER_LEFT">
+                            <Label wrapText="true"
+                                   text="Look here and find a server modpack. Look at its Minecraft version and its Forge version. Go to curseforge and make a new profile with these settings."
+                                   style="-fx-text-fill: #e5e5e5; -fx-font-size: 15px; -fx-line-spacing: 2; -fx-font-family: 'Segoe UI', sans-serif;"
+                                   HBox.hgrow="ALWAYS"/>
+                        </HBox>
+
+                        <HBox spacing="10" alignment="CENTER_LEFT">
+                            <Label wrapText="true"
+                                   text="Go to the new modpack on Curseforge and click the three dots by 'Play'. Click 'Open Folder', this is the folder you will ned when you migrate the modpack to the server."
+                                   style="-fx-text-fill: #e5e5e5; -fx-font-size: 15px; -fx-line-spacing: 2; -fx-font-family: 'Segoe UI', sans-serif;"
+                                   HBox.hgrow="ALWAYS"/>
+                        </HBox>
+
+                        <HBox spacing="10" alignment="CENTER_LEFT">
+                            <Label wrapText="true"
+                                   text="Come back to the application and click 'Migrate Old Modpacks' and click 'Browse' and go into the folder you just opened. Next click on which modpack you want to have then click 'Ok'."
+                                   style="-fx-text-fill: #e5e5e5; -fx-font-size: 15px; -fx-line-spacing: 2; -fx-font-family: 'Segoe UI', sans-serif;"
+                                   HBox.hgrow="ALWAYS"/>
+                        </HBox>
+                    </VBox>
+
+                    <VBox spacing="8"
+                          style="-fx-background-color: rgba(100, 181, 246, 0.1); -fx-background-radius: 8; -fx-padding: 15;">
+                        <Label text="💡 Note"
+                               style="-fx-text-fill: #64B5F6; -fx-font-size: 16px; -fx-font-weight: bold;"/>
+                        <Label wrapText="true"
+                               text="You can also add a pre-existing modpack if it is the same as one on the server. For example if you already have Server V3 (Guns) then you can pass in this folder to start tracking it."
+                               style="-fx-text-fill: #e5e5e5; -fx-font-size: 15px; -fx-line-spacing: 2; -fx-font-family: 'Segoe UI', sans-serif;"/>
+                    </VBox>
+                </VBox>
+
+                <VBox spacing="15"
+                      style="-fx-background-color: rgba(229, 115, 115, 0.1); -fx-background-radius: 12; -fx-padding: 20; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.15), 3, 0, 0, 1);">
+                    <Label text="🔘 Buttons Explained"
+                           style="-fx-text-fill: #EF9A9A; -fx-font-size: 20px; -fx-font-weight: bold; -fx-font-family: 'Segoe UI', sans-serif;"/>
+
+                    <VBox spacing="10">
+                        <HBox spacing="12" alignment="CENTER_LEFT">
+                            <Label text="🔄" style="-fx-text-fill: #EF9A9A; -fx-font-size: 16px;"/>
+                            <Label text="Refresh:"
+                                   style="-fx-text-fill: #EF9A9A; -fx-font-size: 15px; -fx-font-weight: bold;"/>
+                            <Label wrapText="true"
+                                   text="Reloads the modpack data from server and local disk."
+                                   style="-fx-text-fill: #e5e5e5; -fx-font-size: 15px; -fx-line-spacing: 2; -fx-font-family: 'Segoe UI', sans-serif;"
+                                   HBox.hgrow="ALWAYS"/>
+                        </HBox>
+
+                        <HBox spacing="12" alignment="CENTER_LEFT">
+                            <Label text="⚙️" style="-fx-text-fill: #EF9A9A; -fx-font-size: 16px;"/>
+                            <Label text="Settings:"
+                                   style="-fx-text-fill: #EF9A9A; -fx-font-size: 15px; -fx-font-weight: bold;"/>
+                            <Label wrapText="true"
+                                   text="Opens application configuration."
+                                   style="-fx-text-fill: #e5e5e5; -fx-font-size: 15px; -fx-line-spacing: 2; -fx-font-family: 'Segoe UI', sans-serif;"
+                                   HBox.hgrow="ALWAYS"/>
+                        </HBox>
+
+                        <HBox spacing="12" alignment="CENTER_LEFT">
+                            <Label text="📁" style="-fx-text-fill: #EF9A9A; -fx-font-size: 16px;"/>
+                            <Label text="Migrate Old Modpacks:"
+                                   style="-fx-text-fill: #EF9A9A; -fx-font-size: 15px; -fx-font-weight: bold;"/>
+                            <Label wrapText="true"
+                                   text="Converts existing or new modpacks so that they will be able to be tracked."
+                                   style="-fx-text-fill: #e5e5e5; -fx-font-size: 15px; -fx-line-spacing: 2; -fx-font-family: 'Segoe UI', sans-serif;"
+                                   HBox.hgrow="ALWAYS"/>
+                        </HBox>
+                    </VBox>
+                </VBox>
+
+                <VBox spacing="12"
+                      style="-fx-background-color: rgba(255, 107, 53, 0.1); -fx-background-radius: 12; -fx-padding: 20; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.15), 3, 0, 0, 1);">
+                    <Label text="🌐 Connection Status"
+                           style="-fx-text-fill: #FF8A65; -fx-font-size: 20px; -fx-font-weight: bold; -fx-font-family: 'Segoe UI', sans-serif;"/>
+
+                    <HBox spacing="15" alignment="CENTER_LEFT">
+                        <Label wrapText="true"
+                               text="The status icon indicates connection to the modpack server. Yellow means checking, green means connected, red means failed connection."
+                               style="-fx-text-fill: #e5e5e5; -fx-font-size: 15px; -fx-line-spacing: 2; -fx-font-family: 'Segoe UI', sans-serif;"
+                               HBox.hgrow="ALWAYS"/>
+                    </HBox>
+                </VBox>
+
+            </VBox>
+        </ScrollPane>
+    </center>
+    <bottom>
+        <HBox alignment="CENTER_RIGHT"
+              style="-fx-background-color: linear-gradient(to right, #4a4a4a, #3c3c3c); -fx-padding: 18 25; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 4, 0, 0, -2);">
+            <Button fx:id="backButton" text="← Back"
+                    style="-fx-background-color: linear-gradient(to bottom, #6a6a6a, #5a5a5a); -fx-text-fill: white; -fx-background-radius: 10; -fx-font-size: 13px; -fx-padding: 10 20; -fx-font-weight: bold; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 2, 0, 0, 1); -fx-cursor: hand;"
+                    onAction="#goToMain"/>
+        </HBox>
+    </bottom>
+
+</BorderPane>
