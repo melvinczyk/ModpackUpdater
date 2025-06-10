@@ -22,7 +22,7 @@
                         style="-fx-background-color: #5a5a5a; -fx-text-fill: white; -fx-background-radius: 6; -fx-font-size: 12px; -fx-padding: 8 16;"
                         onAction="#goToMain"/>
 
-                <Label text="⚙️ Settings" style="-fx-text-fill: #e0e0e0; -fx-font-size: 24px; -fx-font-weight: bold;">
+                <Label text="⚙ Settings" style="-fx-text-fill: #e0e0e0; -fx-font-size: 24px; -fx-font-weight: bold;">
                     <font>
                         <Font name="System Bold" size="24.0"/>
                     </font>
