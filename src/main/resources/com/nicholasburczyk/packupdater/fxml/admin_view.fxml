@@ -2,12 +2,11 @@
 
 <?import javafx.scene.layout.*?>
 <?import javafx.scene.control.*?>
-<?import javafx.geometry.Insets?>
 <?import javafx.scene.text.Font?>
 
 <BorderPane xmlns:fx="http://javafx.com/fxml"
             fx:controller="com.nicholasburczyk.packupdater.controller.AdminController"
-            prefHeight="600.0" prefWidth="800.0"
+            prefHeight="700.0" prefWidth="1200.0"
             style="-fx-background-color: #2b2b2b;">
 
     <!-- Top: Header Bar -->
@@ -31,51 +30,237 @@
     <center>
         <VBox spacing="25" alignment="TOP_LEFT" style="-fx-padding: 30; -fx-background-color: #2b2b2b;">
 
-            <!-- Modpack Selector -->
-            <HBox spacing="15" alignment="CENTER_LEFT">
-                <Label text="Modpack:"
-                       style="-fx-text-fill: #e0e0e0; -fx-font-size: 14px;"/>
-                <ComboBox fx:id="modpackSelector" promptText="Select modpack"
-                          style="-fx-background-color: #4a4a4a; -fx-text-fill: white; -fx-background-radius: 6;"/>
-            </HBox>
-
-            <!-- Upload Buttons -->
-            <HBox spacing="20">
-                <Button text="Upload File"
-                        fx:id="uploadFileButton"
-                        style="-fx-background-color: #FF6B35; -fx-text-fill: white; -fx-background-radius: 8; -fx-font-size: 13px; -fx-padding: 8 16;"/>
-                <Button text="Upload Folder"
-                        fx:id="uploadFolderButton"
-                        style="-fx-background-color: #FF6B35; -fx-text-fill: white; -fx-background-radius: 8; -fx-font-size: 13px; -fx-padding: 8 16;"/>
-            </HBox>
-
-            <!-- Difference Section -->
-            <VBox spacing="10" style="-fx-background-color: #3a3a3a; -fx-background-radius: 12; -fx-padding: 20;">
-                <Label text="🗂️ Changes Between Local and Server"
+            <!-- Selection Section -->
+            <VBox spacing="15" style="-fx-background-color: #3a3a3a; -fx-background-radius: 12; -fx-padding: 20;">
+                <Label text="📦 Modpack Selection"
                        style="-fx-text-fill: #e0e0e0; -fx-font-size: 16px; -fx-font-weight: bold;">
                     <font>
                         <Font name="System Bold" size="16.0"/>
                     </font>
                 </Label>
 
-                <ScrollPane fitToWidth="true" prefHeight="250"
-                            style="-fx-background: #2b2b2b; -fx-background-color: transparent; -fx-border-color: transparent;">
-                    <VBox fx:id="diffContainer" spacing="10" style="-fx-padding: 10;">
-                        <!-- This will be populated with comparison results -->
-                        <Label text="No differences loaded."
-                               style="-fx-text-fill: #bbbbbb; -fx-font-size: 12px;"/>
-                    </VBox>
-                </ScrollPane>
+                <HBox spacing="15" alignment="CENTER_LEFT">
+                    <Label text="Local Modpack:"
+                           style="-fx-text-fill: #e0e0e0; -fx-font-size: 14px;"/>
+                    <ComboBox fx:id="localModpackSelector" promptText="Select local modpack"
+                              prefWidth="200"
+                              style="-fx-background-color: #4a4a4a; -fx-text-fill: white; -fx-background-radius: 6;"/>
+
+                    <Label text="Server Modpack:"
+                           style="-fx-text-fill: #e0e0e0; -fx-font-size: 14px;"/>
+                    <ComboBox fx:id="serverModpackSelector" promptText="Select server modpack"
+                              prefWidth="200"
+                              style="-fx-background-color: #4a4a4a; -fx-text-fill: white; -fx-background-radius: 6;"/>
+
+                    <Button text="Compare Modpacks"
+                            fx:id="compareButton"
+                            onAction="#compareModpacks"
+                            style="-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-background-radius: 8; -fx-font-size: 13px; -fx-padding: 8 16;"/>
+                </HBox>
             </VBox>
+
+            <!-- Upload Section -->
+            <VBox spacing="15" style="-fx-background-color: #3a3a3a; -fx-background-radius: 12; -fx-padding: 20;">
+                <Label text="📤 Upload Actions"
+                       style="-fx-text-fill: #e0e0e0; -fx-font-size: 16px; -fx-font-weight: bold;">
+                    <font>
+                        <Font name="System Bold" size="16.0"/>
+                    </font>
+                </Label>
+
+                <HBox spacing="20">
+                    <Button text="Upload New Modpack"
+                            fx:id="uploadNewModpackButton"
+                            onAction="#uploadNewModpack"
+                            style="-fx-background-color: #9C27B0; -fx-text-fill: white; -fx-background-radius: 8; -fx-font-size: 13px; -fx-padding: 8 16;"/>
+                </HBox>
+            </VBox>
+
+            <!-- Folder Section -->
+            <VBox spacing="15" style="-fx-background-color: #3a3a3a; -fx-background-radius: 12; -fx-padding: 20;"
+                  prefHeight="250">
+                <Label text="📁 Folder Management"
+                       style="-fx-text-fill: #e0e0e0; -fx-font-size: 16px; -fx-font-weight: bold;">
+                    <font>
+                        <Font name="System Bold" size="16.0"/>
+                    </font>
+                </Label>
+
+                <HBox spacing="20" alignment="TOP_LEFT" VBox.vgrow="ALWAYS">
+                    <VBox spacing="10" prefWidth="300" minWidth="280">
+                        <Label text="Folders to Include:"
+                               style="-fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 14px;"/>
+                        <Label text="Select which folders to compare and sync during modpack operations. Only checked folders will be included in comparisons and uploads."
+                               style="-fx-text-fill: #bbbbbb; -fx-font-size: 12px;" wrapText="true"/>
+
+                        <HBox spacing="10" alignment="CENTER_LEFT">
+                            <Button text="Refresh Folders"
+                                    onAction="#refreshFolders"
+                                    style="-fx-background-color: #2196F3; -fx-text-fill: white; -fx-font-size: 12px; -fx-padding: 8 16; -fx-background-radius: 6;"/>
+                        </HBox>
+
+                        <Label fx:id="folderCountLabel" text="0 folders found"
+                               style="-fx-text-fill: #888888; -fx-font-size: 11px; -fx-font-style: italic;"/>
+                    </VBox>
+
+                    <VBox spacing="5" HBox.hgrow="ALWAYS">
+                        <Label text="Available Folders:"
+                               style="-fx-text-fill: #e0e0e0; -fx-font-size: 14px; -fx-font-weight: bold;"/>
+
+                        <ScrollPane fitToWidth="true" prefHeight="180" VBox.vgrow="ALWAYS"
+                                    style="-fx-background: #2b2b2b; -fx-background-color: #2b2b2b; -fx-border-color: #555555; -fx-border-width: 1; -fx-border-radius: 6;">
+                            <VBox fx:id="foldersContainer" spacing="8"
+                                  style="-fx-padding: 15; -fx-background-color: #2b2b2b;">
+                                <Label text="Click 'Refresh Folders' to scan for available folders in your modpack directory."
+                                       style="-fx-text-fill: #bbbbbb; -fx-font-size: 12px; -fx-font-style: italic;"/>
+                            </VBox>
+                        </ScrollPane>
+
+                        <HBox spacing="15" alignment="CENTER_LEFT">
+                            <Label fx:id="selectedFoldersLabel" text="0 folders selected"
+                                   style="-fx-text-fill: #4CAF50; -fx-font-size: 12px; -fx-font-weight: bold;"/>
+                            <Label fx:id="folderSizeLabel" text="Total size: 0 MB"
+                                   style="-fx-text-fill: #888888; -fx-font-size: 11px;"/>
+                        </HBox>
+                    </VBox>
+                </HBox>
+            </VBox>
+
+            <HBox spacing="20" alignment="TOP_LEFT" prefHeight="400">
+                <VBox spacing="15" style="-fx-background-color: #3a3a3a; -fx-background-radius: 12; -fx-padding: 20;"
+                      HBox.hgrow="ALWAYS">
+                    <HBox spacing="15" alignment="CENTER_LEFT">
+                        <Label text="🔄 Changes Between Local and Server"
+                               style="-fx-text-fill: #e0e0e0; -fx-font-size: 16px; -fx-font-weight: bold;">
+                            <font>
+                                <Font name="System Bold" size="16.0"/>
+                            </font>
+                        </Label>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Button text="Select All"
+                                fx:id="selectAllButton"
+                                onAction="#selectAllChanges"
+                                disable="true"
+                                style="-fx-background-color: #2196F3; -fx-text-fill: white; -fx-background-radius: 6; -fx-font-size: 11px; -fx-padding: 4 12;"/>
+                        <Button text="Deselect All"
+                                fx:id="deselectAllButton"
+                                onAction="#deselectAllChanges"
+                                disable="true"
+                                style="-fx-background-color: #757575; -fx-text-fill: white; -fx-background-radius: 6; -fx-font-size: 11px; -fx-padding: 4 12;"/>
+                    </HBox>
+
+                    <HBox spacing="10" alignment="CENTER_LEFT">
+                        <Label text="Filter:"
+                               style="-fx-text-fill: #bbbbbb; -fx-font-size: 12px;"/>
+                        <CheckBox fx:id="showAddedChanges" text="Added (0)" selected="true"
+                                  onAction="#filterChanges"
+                                  style="-fx-text-fill: #4CAF50; -fx-font-size: 11px;"/>
+                        <CheckBox fx:id="showModifiedChanges" text="Modified (0)" selected="true"
+                                  onAction="#filterChanges"
+                                  style="-fx-text-fill: #FF9800; -fx-font-size: 11px;"/>
+                        <CheckBox fx:id="showDeletedChanges" text="Deleted (0)" selected="true"
+                                  onAction="#filterChanges"
+                                  style="-fx-text-fill: #F44336; -fx-font-size: 11px;"/>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Label fx:id="filteredCountLabel" text="0 of 0 shown"
+                               style="-fx-text-fill: #888888; -fx-font-size: 11px; -fx-font-style: italic;"/>
+                    </HBox>
+
+                    <ScrollPane fitToWidth="true" prefHeight="220" VBox.vgrow="ALWAYS"
+                                style="-fx-background: #2b2b2b; -fx-background-color: transparent; -fx-border-color: transparent;">
+                        <VBox fx:id="diffContainer" spacing="8" style="-fx-padding: 10;">
+                            <Label text="Select modpacks and click 'Compare Modpacks' to see differences."
+                                   style="-fx-text-fill: #bbbbbb; -fx-font-size: 12px; -fx-font-style: italic;"/>
+                        </VBox>
+                    </ScrollPane>
+
+                    <!-- Action Buttons -->
+                    <HBox spacing="15" alignment="CENTER_RIGHT">
+                        <VBox spacing="5">
+                            <Label text="Version Info:"
+                                   style="-fx-text-fill: #bbbbbb; -fx-font-size: 12px;"/>
+                            <Label text="Current Version:" fx:id="currentVersion"
+                                   style="-fx-text-fill: #bbbbbb; -fx-font-size: 12px;"/>
+                            <HBox spacing="10">
+                                <TextField fx:id="newVersionField" promptText="e.g. 1.0.1"
+                                           prefWidth="80"
+                                           style="-fx-background-color: #4a4a4a; -fx-text-fill: white; -fx-background-radius: 4; -fx-font-size: 11px;"/>
+                                <TextField fx:id="changelogMessageField" promptText="Brief description of changes"
+                                           prefWidth="200"
+                                           style="-fx-background-color: #4a4a4a; -fx-text-fill: white; -fx-background-radius: 4; -fx-font-size: 11px;"/>
+                            </HBox>
+                        </VBox>
+                        <Label fx:id="stagedCountLabel" text="0 changes staged"
+                               style="-fx-text-fill: #bbbbbb; -fx-font-size: 12px;"/>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Button text="Stage Selected"
+                                fx:id="stageSelectedButton"
+                                onAction="#stageSelectedChanges"
+                                disable="true"
+                                style="-fx-background-color: #FF9800; -fx-text-fill: white; -fx-background-radius: 8; -fx-font-size: 13px; -fx-padding: 8 16;"/>
+                        <Button text="Upload New Version"
+                                fx:id="uploadVersionButton"
+                                onAction="#uploadNewVersion"
+                                disable="true"
+                                style="-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-background-radius: 8; -fx-font-size: 13px; -fx-padding: 8 16;"/>
+                    </HBox>
+                </VBox>
+
+                <VBox spacing="15" style="-fx-background-color: #3a3a3a; -fx-background-radius: 12; -fx-padding: 20;"
+                      prefWidth="450" minWidth="400">
+                    <HBox spacing="15" alignment="CENTER_LEFT">
+                        <Label text="📋 Staged Changes"
+                               style="-fx-text-fill: #e0e0e0; -fx-font-size: 16px; -fx-font-weight: bold;">
+                            <font>
+                                <Font name="System Bold" size="16.0"/>
+                            </font>
+                        </Label>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Button text="Clear All"
+                                fx:id="clearStagedButton"
+                                onAction="#clearStagedChanges"
+                                disable="true"
+                                style="-fx-background-color: #757575; -fx-text-fill: white; -fx-background-radius: 6; -fx-font-size: 11px; -fx-padding: 4 12;"/>
+                    </HBox>
+
+                    <HBox spacing="10" alignment="CENTER_LEFT">
+                        <Label text="Filter:"
+                               style="-fx-text-fill: #bbbbbb; -fx-font-size: 12px;"/>
+                        <CheckBox fx:id="showStagedAdded" text="Added (0)" selected="true"
+                                  onAction="#filterStagedChanges"
+                                  style="-fx-text-fill: #4CAF50; -fx-font-size: 11px;"/>
+                        <CheckBox fx:id="showStagedModified" text="Modified (0)" selected="true"
+                                  onAction="#filterStagedChanges"
+                                  style="-fx-text-fill: #FF9800; -fx-font-size: 11px;"/>
+                        <CheckBox fx:id="showStagedDeleted" text="Deleted (0)" selected="true"
+                                  onAction="#filterStagedChanges"
+                                  style="-fx-text-fill: #F44336; -fx-font-size: 11px;"/>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Label fx:id="stagedFilteredCountLabel" text="0 of 0 shown"
+                               style="-fx-text-fill: #888888; -fx-font-size: 11px; -fx-font-style: italic;"/>
+                    </HBox>
+
+                    <ScrollPane fitToWidth="true" prefHeight="220" VBox.vgrow="ALWAYS"
+                                style="-fx-background: #2b2b2b; -fx-background-color: transparent; -fx-border-color: transparent;"
+                                HBox.hgrow="ALWAYS">
+                        <VBox fx:id="stagedContainer" spacing="5" style="-fx-padding: 10;">
+                            <Label text="No changes staged."
+                                   style="-fx-text-fill: #bbbbbb; -fx-font-size: 12px; -fx-font-style: italic;"/>
+                        </VBox>
+                    </ScrollPane>
+                </VBox>
+
+            </HBox>
         </VBox>
     </center>
-
-    <!-- Bottom: Status Bar -->
     <bottom>
         <HBox spacing="10" alignment="CENTER_LEFT"
               style="-fx-background-color: #3c3c3c; -fx-padding: 10 20;">
             <Label fx:id="statusLabel" text="Ready"
                    style="-fx-text-fill: #999999; -fx-font-size: 12px;"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <ProgressBar fx:id="progressBar" prefWidth="200" visible="false"
+                         style="-fx-accent: #4CAF50;"/>
         </HBox>
     </bottom>
 </BorderPane>

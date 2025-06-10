@@ -1,5 +1,6 @@
 package com.nicholasburczyk.packupdater.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nicholasburczyk.packupdater.Main;
 import com.nicholasburczyk.packupdater.config.ConfigManager;
 import com.nicholasburczyk.packupdater.model.Config;
@@ -8,6 +9,7 @@ import com.nicholasburczyk.packupdater.server.B2ClientProvider;
 import com.nicholasburczyk.packupdater.server.ConnectionStatus;
 import com.nicholasburczyk.packupdater.server.ModpackRegistry;
 import com.nicholasburczyk.packupdater.util.ModpackUIHelper;
+import com.nicholasburczyk.packupdater.util.UpdateChecker;
 import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.event.ActionEvent;
@@ -20,13 +22,11 @@ import javafx.scene.layout.VBox;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 
+import java.io.File;
 import java.io.IOException;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 public class MainController {
 
@@ -51,8 +51,9 @@ public class MainController {
 
     Config config = ConfigManager.getInstance().getConfig();
 
+    // idgaf
     private static final String ADMIN_USERNAME = "admin";
-    private static final String ADMIN_PASSWORD = "admin123";
+    private static final String ADMIN_PASSWORD = "goon4lyfe";
 
     @FXML
     public void initialize() {
@@ -70,20 +71,6 @@ public class MainController {
         new Thread(fetchModpacksTask).start();
     }
 
-    private Task<Void> getTask() {
-        Task<Void> fetchModpacksTask = getVoidTask();
-        fetchModpacksTask.setOnSucceeded(e -> {
-            System.out.println("Successfully fetched modpack info.");
-            Platform.runLater(() -> {
-                ModpackUIHelper.populateModpackList(serverModpacksContainer, ModpackRegistry.getServerModpacks(), false);
-                ModpackUIHelper.populateModpackList(localModpacksContainer, ModpackRegistry.getLocalModpacks(), true);
-                totalServerModpacksLabel.setText(String.valueOf(ModpackRegistry.getServerModpacks().size()));
-                totalLocalModpacksLabel.setText(String.valueOf(ModpackRegistry.getLocalModpacks().size()));
-            });
-        });
-        return fetchModpacksTask;
-    }
-
     @FXML
     private void reconnectToClientAction() {
         B2ClientProvider.reconnectToClient();
@@ -94,6 +81,28 @@ public class MainController {
     @FXML
     private void goToSettings(ActionEvent event) throws Exception {
         Main.setRoot("settings_view.fxml");
+    }
+
+    @FXML
+    private void goToHelp(ActionEvent event) throws Exception {
+        Main.setRoot("help_view.fxml");
+    }
+
+    private void goToAdminPage() {
+        try {
+            FXMLLoader loader = new FXMLLoader(getClass().getResource("/com/nicholasburczyk/packupdater/fxml/admin_view.fxml"));
+            Parent adminRoot = loader.load();
+
+            Stage currentStage = (Stage) adminLoginButton.getScene().getWindow();
+
+            Scene adminScene = new Scene(adminRoot);
+            currentStage.setScene(adminScene);
+            currentStage.setTitle("Modpack Manager - Admin Panel");
+
+        } catch (IOException e) {
+            e.printStackTrace();
+            showErrorAlert("Error", "Could not load admin page: " + e.getMessage());
+        }
     }
 
     @FXML
@@ -128,23 +137,6 @@ public class MainController {
     }
 
     @FXML
-    private void refreshModpackList(ActionEvent event) {
-        serverModpacksContainer.getChildren().clear();
-        localModpacksContainer.getChildren().clear();
-        Task<Void> fetchModpacksTask = getVoidTask();
-        fetchModpacksTask.setOnSucceeded(e -> {
-            System.out.println("Successfully fetched modpack info.");
-            Platform.runLater(() -> {
-                ModpackUIHelper.populateModpackList(serverModpacksContainer, ModpackRegistry.getServerModpacks(), false);
-                ModpackUIHelper.populateModpackList(localModpacksContainer, ModpackRegistry.getLocalModpacks(), true);
-            });
-        });
-        new Thread(fetchModpacksTask).start();
-        totalServerModpacksLabel.setText(String.valueOf(ModpackRegistry.getServerModpacks().size()));
-        totalLocalModpacksLabel.setText(String.valueOf(ModpackRegistry.getLocalModpacks().size()));
-    }
-
-    @FXML
     private void migrateOldModpacksAction(ActionEvent event) {
         try {
             FXMLLoader loader = new FXMLLoader(getClass().getResource("/com/nicholasburczyk/packupdater/fxml/migrate_modpack.fxml"));
@@ -159,16 +151,13 @@ public class MainController {
             dialogStage.setScene(new Scene(root));
             controller.setDialogStage(dialogStage);
 
-            // Get local modpack IDs (roots)
             Map<String, ModpackInfo> localModpacks = ModpackRegistry.getLocalModpacks();
             Set<String> localModpackIds = localModpacks.keySet();
 
-            // Get all server modpack IDs
             Map<String, ModpackInfo> serverModpacks = ModpackRegistry.getServerModpacks();
             List<String> filteredServerModpacks = new ArrayList<>();
 
             for (String serverModpackId : serverModpacks.keySet()) {
-                // Only add if local modpacks do NOT contain the same id (root)
                 if (!localModpackIds.contains(serverModpackId)) {
                     filteredServerModpacks.add(serverModpackId);
                 }
@@ -184,12 +173,117 @@ public class MainController {
 
                 System.out.println("Migrating from: " + path + " to server modpack: " + selectedServerModpack);
             }
+            refreshModpackList(event);
         } catch (Exception ex) {
             ex.printStackTrace();
         }
     }
 
+    @FXML
+    private void refreshModpackList(ActionEvent event) {
+        serverModpacksContainer.getChildren().clear();
+        localModpacksContainer.getChildren().clear();
 
+        Task<Void> fetchModpacksTask = getVoidTask();
+        loadLocalModpacks();
+
+        fetchModpacksTask.setOnSucceeded(e -> {
+            System.out.println("Successfully fetched modpack info.");
+
+            Map<String, ModpackInfo> localModpacks = ModpackRegistry.getLocalModpacks();
+            Map<String, ModpackInfo> serverModpacks = ModpackRegistry.getServerModpacks();
+
+            int totalUpdates = 0;
+            for (String modpackId : localModpacks.keySet()) {
+                ModpackInfo local = localModpacks.get(modpackId);
+                ModpackInfo server = serverModpacks.get(modpackId);
+
+                if (server != null) {
+                    int updates = UpdateChecker.countUpdatesAvailable(server, local);
+                    totalUpdates += updates;
+                    local.setUpdateCount(updates);
+                }
+            }
+
+            int finalTotalUpdates = totalUpdates;
+
+            Platform.runLater(() -> {
+                ModpackUIHelper.populateModpackList(serverModpacksContainer, serverModpacks, false);
+                ModpackUIHelper.populateModpackList(localModpacksContainer, localModpacks, true);
+
+                totalServerModpacksLabel.setText(String.valueOf(serverModpacks.size()));
+                totalLocalModpacksLabel.setText(String.valueOf(localModpacks.size()));
+
+                updatesAvailableLabel.setText(finalTotalUpdates > 0
+                        ? finalTotalUpdates + " updates available"
+                        : "Up to date");
+            });
+        });
+
+        new Thread(fetchModpacksTask).start();
+    }
+
+    private Task<Void> getTask() {
+        Task<Void> fetchModpacksTask = getVoidTask();
+        fetchModpacksTask.setOnSucceeded(e -> {
+            System.out.println("Successfully fetched modpack info.");
+            Map<String, ModpackInfo> localModpacks = ModpackRegistry.getLocalModpacks();
+            Map<String, ModpackInfo> serverModpacks = ModpackRegistry.getServerModpacks();
+
+            int totalUpdates = 0;
+
+            for (String modpackId : localModpacks.keySet()) {
+                ModpackInfo local = localModpacks.get(modpackId);
+                ModpackInfo server = serverModpacks.get(modpackId);
+
+                if (server != null) {
+                    int updates = UpdateChecker.countUpdatesAvailable(server, local);
+                    totalUpdates += updates;
+                    local.setUpdateCount(updates);
+                }
+            }
+
+            int finalTotalUpdates = totalUpdates;
+            Platform.runLater(() -> {
+                ModpackUIHelper.populateModpackList(serverModpacksContainer, serverModpacks, false);
+                ModpackUIHelper.populateModpackList(localModpacksContainer, localModpacks, true);
+                totalServerModpacksLabel.setText(String.valueOf(serverModpacks.size()));
+                totalLocalModpacksLabel.setText(String.valueOf(localModpacks.size()));
+                updatesAvailableLabel.setText(finalTotalUpdates > 0
+                        ? finalTotalUpdates + " updates available"
+                        : "Up to date");
+            });
+        });
+
+        return fetchModpacksTask;
+    }
+
+    private void loadLocalModpacks() {
+        File instancesFolder = new File(config.getCurseforge_path());
+        Map<String, ModpackInfo> localModpacks = new HashMap<>();
+
+        if (instancesFolder.exists() && instancesFolder.isDirectory()) {
+            File[] folders = instancesFolder.listFiles(File::isDirectory);
+            if (folders != null) {
+                ObjectMapper mapper = new ObjectMapper();
+
+                for (File folder : folders) {
+                    File manifestFile = new File(folder, "manifest.json");
+                    if (manifestFile.exists()) {
+                        try {
+                            ModpackInfo info = mapper.readValue(manifestFile, ModpackInfo.class);
+                            localModpacks.put(folder.getName(), info);
+                        } catch (IOException e) {
+                            System.err.println("Failed to load manifest in " + folder.getName() + ": " + e.getMessage());
+                        }
+                    }
+                }
+            }
+        } else {
+            System.err.println("Instances folder does not exist or is not a directory: " + config.getCurseforge_path());
+        }
+        ModpackRegistry.setLocalModpacks(localModpacks);
+    }
 
     private Task<Void> getVoidTask() {
         Task<Void> fetchModpacksTask = new Task<>() {
@@ -281,27 +375,6 @@ public class MainController {
         new Thread(task).start();
     }
 
-    private boolean validateAdminCredentials(String username, String password) {
-        return ADMIN_USERNAME.equals(username) && ADMIN_PASSWORD.equals(password);
-    }
-
-    private void goToAdminPage() {
-        try {
-            FXMLLoader loader = new FXMLLoader(getClass().getResource("/com/nicholasburczyk/packupdater/fxml/admin_view.fxml"));
-            Parent adminRoot = loader.load();
-
-            Stage currentStage = (Stage) adminLoginButton.getScene().getWindow();
-
-            Scene adminScene = new Scene(adminRoot);
-            currentStage.setScene(adminScene);
-            currentStage.setTitle("Modpack Manager - Admin Panel");
-
-        } catch (IOException e) {
-            e.printStackTrace();
-            showErrorAlert("Error", "Could not load admin page: " + e.getMessage());
-        }
-    }
-
     private void showErrorAlert(String title, String message) {
         Alert alert = new Alert(Alert.AlertType.ERROR);
         alert.setTitle(title);
@@ -314,5 +387,9 @@ public class MainController {
         LocalTime now = LocalTime.now();
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm:ss");
         lastUpdateLabel.setText("Last checked: " + now.format(formatter));
+    }
+
+    private boolean validateAdminCredentials(String username, String password) {
+        return ADMIN_USERNAME.equals(username) && ADMIN_PASSWORD.equals(password);
     }
 }

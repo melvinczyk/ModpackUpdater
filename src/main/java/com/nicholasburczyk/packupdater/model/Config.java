@@ -8,6 +8,7 @@ public class Config {
     private String keyID;
     private String appKey;
     private String bucketName;
+    private String[] ignoredFiles;
 
     public void setCurseforge_path(String path) {
         this.curseforge_path = path;
@@ -63,5 +64,13 @@ public class Config {
 
     public String getBucketName() {
         return this.bucketName;
+    }
+
+    public String[] getIgnoredFiles() {
+        return ignoredFiles;
+    }
+
+    public void setIgnoredFiles(String[] ignoredFiles) {
+        this.ignoredFiles = ignoredFiles;
     }
 }

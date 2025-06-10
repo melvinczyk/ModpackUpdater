@@ -1,7 +1,8 @@
 package com.nicholasburczyk.packupdater.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import java.util.List;
-import java.util.Map;
 
 public class ModpackInfo {
     private String root;
@@ -11,20 +12,25 @@ public class ModpackInfo {
     private String description;
     private String version;
     private String minecraftVersion;
-    private String modLoaderVersion;  // <-- added field
+    private String modLoaderVersion;
     private String modLoader;
+
+    @JsonIgnore
+    private int updateCount = 0;
 
     private String created;
     private String lastUpdated;
 
     private List<String> folders;
-    private Map<String, FileMetadata> files;
     private List<ChangelogEntry> changelog;
 
     // --- Getters ---
     public String getRoot() {
         return root;
     }
+
+    public int getUpdateCount() { return updateCount; }
+    public void setUpdateCount(int updateCount) { this.updateCount = updateCount; }
 
     public String getModpackId() {
         return modpackId;
@@ -68,10 +74,6 @@ public class ModpackInfo {
 
     public List<String> getFolders() {
         return folders;
-    }
-
-    public Map<String, FileMetadata> getFiles() {
-        return files;
     }
 
     public List<ChangelogEntry> getChangelog() {
@@ -125,10 +127,6 @@ public class ModpackInfo {
 
     public void setFolders(List<String> folders) {
         this.folders = folders;
-    }
-
-    public void setFiles(Map<String, FileMetadata> files) {
-        this.files = files;
     }
 
     public void setChangelog(List<ChangelogEntry> changelog) {

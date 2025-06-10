@@ -41,23 +41,21 @@ public class B2ClientProvider {
         return client;
     }
 
-    public static synchronized boolean reconnectToClient() {
+    public static synchronized void reconnectToClient() {
         Config config = ConfigManager.getInstance().getConfig();
 
         try {
             Matcher matcher = Pattern.compile("https://s3\\.([a-z0-9-]+)\\.backblazeb2\\.com").matcher(config.getEndpoint());
             if (!matcher.find()) {
                 System.err.println("Can't find a region in the endpoint URL: " + config.getEndpoint());
-                return false;
+                return;
             }
 
             String region = matcher.group(1);
             client = S3Client.builder().region(Region.of(region)).credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create(config.getKeyID(), config.getAppKey()))).endpointOverride(new URI(config.getEndpoint())).build();
 
-            return true;
         } catch (Exception e) {
             e.printStackTrace();
-            return false;
         }
     }
 

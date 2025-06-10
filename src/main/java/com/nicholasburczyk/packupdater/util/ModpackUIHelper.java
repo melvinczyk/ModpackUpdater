@@ -35,11 +35,10 @@ public class ModpackUIHelper {
             if (isLocal) {
                 try {
                     String localProfileImageFolder = config.getCurseforge_path() + "/" + profileImagePrefix;
-                            File profileImageDir = new File(localProfileImageFolder);
+                    File profileImageDir = new File(localProfileImageFolder);
 
                     File imageFile = null;
                     if (profileImageDir.exists() && profileImageDir.isDirectory()) {
-                        // Find the first image file in profileImage folder
                         File[] files = profileImageDir.listFiles((dir, name) -> {
                             String lower = name.toLowerCase();
                             return lower.endsWith(".png") || lower.endsWith(".jpg") || lower.endsWith(".jpeg");
@@ -94,7 +93,7 @@ public class ModpackUIHelper {
                     image = new Image(Objects.requireNonNull(ModpackUIHelper.class.getResourceAsStream("/com/nicholasburczyk/packupdater/images/default.png")));
                 }
             }
-            HBox entryBox = UIComponents.createModpackEntry(modpackId, info.toString(), image, isLocal);
+            HBox entryBox = UIComponents.createModpackEntry(info, image, isLocal);
             container.getChildren().add(entryBox);
         }
     }

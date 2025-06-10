@@ -13,6 +13,7 @@ import javafx.scene.control.ComboBox;
 import javafx.scene.control.TextField;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.Stage;
+import software.amazon.awssdk.core.sync.ResponseTransformer;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
 
@@ -24,36 +25,15 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 public class MigrateModpackController {
-    @FXML private TextField pathTextField;
-    @FXML private ComboBox<String> serverModpackComboBox;
+    @FXML
+    private TextField pathTextField;
+    @FXML
+    private ComboBox<String> serverModpackComboBox;
 
     Config config = ConfigManager.getInstance().getConfig();
 
     private Stage dialogStage;
     private boolean confirmed = false;
-
-    public void setDialogStage(Stage stage) {
-        this.dialogStage = stage;
-    }
-
-    public void setServerModpacks(List<String> modpackNames) {
-        serverModpackComboBox.getItems().setAll(modpackNames);
-        if (!modpackNames.isEmpty()) {
-            serverModpackComboBox.getSelectionModel().selectFirst();
-        }
-    }
-
-    public boolean isConfirmed() {
-        return confirmed;
-    }
-
-    public String getSelectedPath() {
-        return pathTextField.getText();
-    }
-
-    public String getSelectedServerModpack() {
-        return serverModpackComboBox.getSelectionModel().getSelectedItem();
-    }
 
     @FXML
     private void browseFolder(ActionEvent event) {
@@ -131,12 +111,14 @@ public class MigrateModpackController {
 
             mapper.writerWithDefaultPrettyPrinter().writeValue(manifestFile, localManifest);
 
-            compareModpackFilesWithBackblaze(selectedFolder, selectedModpackInfo.getRoot(), localManifest.getFolders());
+            List<String> foldersToLook = localManifest.getFolders();
+            foldersToLook.add("profileImage");
+
+            compareModpackFiles(selectedFolder, selectedModpackInfo.getRoot(), localManifest.getFolders());
 
             ModpackRegistry.addLocalModpack(localManifest.getRoot(), localManifest);
             confirmed = true;
             dialogStage.close();
-
 
         } catch (IOException e) {
             e.printStackTrace();
@@ -144,7 +126,31 @@ public class MigrateModpackController {
         }
     }
 
-    private void compareModpackFilesWithBackblaze(File localRoot, String serverRootKey, List<String> folders) {
+    public void setDialogStage(Stage stage) {
+        this.dialogStage = stage;
+    }
+
+    public void setServerModpacks(List<String> modpackNames) {
+        serverModpackComboBox.getItems().setAll(modpackNames);
+        if (!modpackNames.isEmpty()) {
+            serverModpackComboBox.getSelectionModel().selectFirst();
+        }
+    }
+
+    public boolean isConfirmed() {
+        return confirmed;
+    }
+
+    public String getSelectedPath() {
+        return pathTextField.getText();
+    }
+
+    public String getSelectedServerModpack() {
+        return serverModpackComboBox.getSelectionModel().getSelectedItem();
+    }
+
+
+    private void compareModpackFiles(File localRoot, String serverRootKey, List<String> folders) {
         S3Client client = B2ClientProvider.getClient();
         String bucketName = config.getBucketName();
 
@@ -152,70 +158,21 @@ public class MigrateModpackController {
         Set<String> allowedFolders = folders.stream().map(f -> serverRootKey + "/" + f + "/").collect(Collectors.toSet());
 
         try {
-            System.out.println("=== DEBUG: Starting server file collection ===");
-            System.out.println("Server root key: " + serverRootKey);
-            System.out.println("Folders to check: " + folders);
-            System.out.println("Bucket name: " + bucketName);
-
             for (String folder : folders) {
                 String prefix = serverRootKey + "/" + folder + "/";
-                System.out.println("Checking server folder with prefix: " + prefix);
-
                 ListObjectsV2Request request = ListObjectsV2Request.builder()
                         .bucket(bucketName)
                         .prefix(prefix)
                         .build();
-
                 ListObjectsV2Response response = client.listObjectsV2(request);
-                System.out.println("Found " + response.contents().size() + " objects with prefix: " + prefix);
-
                 for (S3Object object : response.contents()) {
                     String key = object.key();
-                    System.out.println("Found S3 object: " + key + " | Size: " + object.size() + " bytes");
-
-                    serverFileInfo.put(key, new FileInfo("", object.size()));
-                    System.out.println("Added to serverFileInfo: " + key + " | Size: " + object.size() + " bytes");
+                    String md5Hash = object.eTag().replace("\"", "");
+                    serverFileInfo.put(key, new FileInfo(md5Hash, object.size()));
                 }
             }
-            System.out.println("=== DEBUG: Finished server file collection ===");
 
             Path localRootPath = localRoot.toPath();
-
-            System.out.println("=== SERVER FILES FOUND ===");
-            serverFileInfo.keySet().forEach(key ->
-                    System.out.println("Server: " + key + " | Size: " + serverFileInfo.get(key).size + " bytes"));
-            System.out.println("=== END SERVER FILES ===");
-
-            Files.walk(localRootPath)
-                    .filter(Files::isRegularFile)
-                    .filter(path -> folders.stream().anyMatch(folder -> path.toString().replace("\\", "/").contains("/" + folder + "/")))
-                    .forEach(localFile -> {
-                        try {
-                            String relativePath = localRootPath.relativize(localFile).toString().replace("\\", "/");
-                            String serverPath = serverRootKey + "/" + relativePath;
-                            long localSize = Files.size(localFile);
-
-                            System.out.println("Local file: " + relativePath + " | Size: " + localSize + " bytes");
-                            System.out.println("    Looking for server path: " + serverPath);
-                            System.out.println("    Available server paths: " + serverFileInfo.keySet().stream()
-                                    .filter(key -> key.contains(relativePath.substring(relativePath.lastIndexOf('/') + 1)))
-                                    .collect(Collectors.toList()));
-
-                            if (!serverFileInfo.containsKey(serverPath)) {
-                                System.out.println(">>> Missing on server: " + relativePath + " (Local size: " + localSize + " bytes)");
-                            } else {
-                                FileInfo serverInfo = serverFileInfo.get(serverPath);
-                                if (localSize != serverInfo.size) {
-                                    System.out.println(">>> Size mismatch: " + relativePath +
-                                            " | Local size: " + localSize + " bytes | Server size: " + serverInfo.size + " bytes");
-                                } else {
-                                    System.out.println(">>> Size match: " + relativePath + " (" + localSize + " bytes)");
-                                }
-                            }
-                        } catch (IOException e) {
-                            System.err.println("Error comparing file: " + localFile + ", " + e.getMessage());
-                        }
-                    });
 
             Set<String> localRelativePaths = Files.walk(localRootPath)
                     .filter(Files::isRegularFile)
@@ -226,30 +183,77 @@ public class MigrateModpackController {
                     .collect(Collectors.toSet());
 
             for (String serverPath : serverFileInfo.keySet()) {
-                if (allowedFolders.stream().anyMatch(serverPath::startsWith)) {
-                    if (!localRelativePaths.contains(serverPath)) {
-                        FileInfo serverInfo = serverFileInfo.get(serverPath);
-                        System.out.println(">>> Missing locally: " + serverPath.substring(serverRootKey.length() + 1) +
-                                " (Server size: " + serverInfo.size + " bytes)");
+                if (allowedFolders.stream().noneMatch(serverPath::startsWith)) continue;
+
+                String relativePath = serverPath.substring(serverRootKey.length() + 1);
+                Path localFilePath = localRootPath.resolve(relativePath);
+                boolean needsDownload = false;
+
+                if (Files.notExists(localFilePath)) {
+                    System.out.println(">> Will download missing file: " + relativePath);
+                    needsDownload = true;
+                } else {
+                    String localMd5 = calculateMD5(localFilePath);
+                    String serverMd5 = serverFileInfo.get(serverPath).sha1;
+                    if (!localMd5.equals(serverMd5)) {
+                        System.out.println(">> Will overwrite mismatched file: " + relativePath);
+                        needsDownload = true;
                     }
+                }
+
+                if (needsDownload) {
+                    downloadFileFromServer(client, bucketName, serverPath, localFilePath);
                 }
             }
 
+            Files.walk(localRootPath)
+                    .filter(Files::isRegularFile)
+                    .filter(path -> folders.stream().anyMatch(folder -> path.toString().replace("\\", "/").contains("/" + folder + "/")))
+                    .forEach(localFile -> {
+                        String relativePath = localRootPath.relativize(localFile).toString().replace("\\", "/");
+                        String fullServerKey = serverRootKey + "/" + relativePath;
+
+                        if (!serverFileInfo.containsKey(fullServerKey)) {
+                            try {
+                                System.out.println(">> Deleting extra local file: " + relativePath);
+                                Files.delete(localFile);
+                            } catch (IOException e) {
+                                System.err.println("Failed to delete: " + localFile + " (" + e.getMessage() + ")");
+                            }
+                        }
+                    });
+
         } catch (IOException e) {
             e.printStackTrace();
-            showAlert("An error occurred during file comparison.");
+            showAlert("An error occurred during file comparison and sync.");
         }
     }
 
-    private static class FileInfo {
-        final String sha1;
-        final long size;
+    private void downloadFileFromServer(S3Client client, String bucket, String key, Path localPath) {
+        if (key.endsWith(".bzEmpty")) {
+            System.out.println("Ignoring .bzEmpty file on server: " + key);
+            return;
+        }
 
-        FileInfo(String sha1, long size) {
-            this.sha1 = sha1;
-            this.size = size;
+        try {
+            Files.createDirectories(localPath.getParent());
+
+            if (Files.exists(localPath)) {
+                Files.delete(localPath);
+            }
+
+            GetObjectRequest request = GetObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(key)
+                    .build();
+
+            client.getObject(request, ResponseTransformer.toFile(localPath));
+            System.out.println("Downloaded: " + key + " → " + localPath);
+        } catch (IOException e) {
+            System.err.println("Error downloading " + key + ": " + e.getMessage());
         }
     }
+
     private void showAlert(String message) {
         Alert alert = new Alert(Alert.AlertType.WARNING);
         alert.initOwner(dialogStage);
@@ -259,4 +263,30 @@ public class MigrateModpackController {
         alert.showAndWait();
     }
 
+
+    private String calculateMD5(Path filePath) throws IOException {
+        try {
+            java.security.MessageDigest digest = java.security.MessageDigest.getInstance("MD5");
+            byte[] fileBytes = Files.readAllBytes(filePath);
+            byte[] hashBytes = digest.digest(fileBytes);
+
+            StringBuilder sb = new StringBuilder();
+            for (byte b : hashBytes) {
+                sb.append(String.format("%02x", b));
+            }
+            return sb.toString();
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IOException("MD5 algorithm not available", e);
+        }
+    }
+
+    private static class FileInfo {
+        final String sha1;
+        final long size;
+
+        FileInfo(String hash, long size) {
+            this.sha1 = hash;
+            this.size = size;
+        }
+    }
 }

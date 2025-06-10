@@ -10,7 +10,6 @@
             prefHeight="600.0" prefWidth="700.0"
             style="-fx-background-color: #2b2b2b;">
 
-    <!-- Header Section -->
     <top>
         <VBox spacing="10"
               style="-fx-background-color: #3c3c3c; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 5, 0, 0, 2);">
@@ -32,7 +31,6 @@
         </VBox>
     </top>
 
-    <!-- Main Content -->
     <center>
         <ScrollPane fitToWidth="true"
                     style="-fx-background: #2b2b2b; -fx-background-color: transparent; -fx-border-color: transparent;">
@@ -67,7 +65,6 @@
                                     onAction="#browseForFolder"/>
                         </HBox>
 
-                        <!-- Status indicator -->
                         <HBox spacing="8" alignment="CENTER_LEFT">
                             <Label fx:id="pathStatusIcon" text="⚠️" style="-fx-font-size: 14px;"/>
                             <Label fx:id="pathStatusLabel" text="Please select your CurseForge instances folder"
@@ -80,7 +77,6 @@
                     </VBox>
                 </VBox>
 
-                <!-- Server Configuration Section -->
                 <VBox spacing="15"
                       style="-fx-background-color: #3a3a3a; -fx-background-radius: 12; -fx-padding: 20; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 3, 0, 0, 1);">
                     <Label text="🌐 Server Configuration"
@@ -117,26 +113,10 @@
                         </VBox>
                     </VBox>
                 </VBox>
-                <!-- General Settings Section -->
-                <VBox spacing="15"
-                      style="-fx-background-color: #3a3a3a; -fx-background-radius: 12; -fx-padding: 20; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 3, 0, 0, 1);">
-                    <Label text="🔧 General Settings"
-                           style="-fx-text-fill: #e0e0e0; -fx-font-size: 18px; -fx-font-weight: bold;">
-                        <font>
-                            <Font name="System Bold" size="18.0"/>
-                        </font>
-                    </Label>
-
-                    <VBox spacing="12">
-                        <CheckBox fx:id="autoUpdateCheckBox" text="Automatically download updates"
-                                  style="-fx-text-fill: #cccccc; -fx-font-size: 12px;"/>
-                    </VBox>
-                </VBox>
             </VBox>
         </ScrollPane>
     </center>
 
-    <!-- Footer with Action Buttons -->
     <bottom>
         <HBox spacing="15" alignment="CENTER_RIGHT"
               style="-fx-background-color: #3c3c3c; -fx-padding: 20; -fx-border-color: #555555; -fx-border-width: 1 0 0 0;">
