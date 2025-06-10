@@ -94,7 +94,7 @@
 
             <HBox spacing="30" alignment="TOP_CENTER">
                 <VBox spacing="10" HBox.hgrow="ALWAYS">
-                    <Label text="☁️ Server Modpacks"
+                    <Label text="☁ Server Modpacks"
                            style="-fx-text-fill: #e0e0e0; -fx-font-size: 18px; -fx-font-weight: bold;"/>
                     <ScrollPane fitToWidth="true" style="-fx-background-color: transparent;">
                         <VBox fx:id="serverModpacksContainer" spacing="10"

@@ -20,7 +20,7 @@ dependencies {
 
 javafx {
     version = "17.0.2"
-    modules = [ 'javafx.controls', 'javafx.fxml' ]
+    modules = ['javafx.controls', 'javafx.fxml']
 }
 
 application {
@@ -31,4 +31,38 @@ shadowJar {
     archiveBaseName = 'packupdater'
     archiveClassifier = ''
     mergeServiceFiles()
+}
+
+
+task createLaunchers {
+    dependsOn shadowJar
+    group = 'distribution'
+    description = 'Creates simple launcher scripts'
+
+    doLast {
+        def jarFile = shadowJar.archiveFile.get().asFile
+        def launchersDir = file("${buildDir}/launchers")
+        launchersDir.mkdirs()
+
+        copy {
+            from jarFile
+            into launchersDir
+        }
+
+        def batFile = file("${launchersDir}/PackUpdater.bat")
+        batFile.text = """@echo off
+cd /d "%~dp0"
+java -jar ${jarFile.name}
+pause
+"""
+
+        def shFile = file("${launchersDir}/PackUpdater.sh")
+        shFile.text = """#!/bin/bash
+cd "\$(dirname "\$0")"
+java -jar ${jarFile.name}
+"""
+        shFile.setExecutable(true)
+
+        println "Launchers created in: ${launchersDir}"
+    }
 }
