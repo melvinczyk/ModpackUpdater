@@ -1,6 +1,7 @@
 package com.nicholasburczyk.packupdater.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nicholasburczyk.packupdater.GUI;
 import com.nicholasburczyk.packupdater.Main;
 import com.nicholasburczyk.packupdater.config.ConfigManager;
 import com.nicholasburczyk.packupdater.model.Config;
@@ -80,12 +81,12 @@ public class MainController {
 
     @FXML
     private void goToSettings(ActionEvent event) throws Exception {
-        Main.setRoot("settings_view.fxml");
+        GUI.setRoot("settings_view.fxml");
     }
 
     @FXML
     private void goToHelp(ActionEvent event) throws Exception {
-        Main.setRoot("help_view.fxml");
+        GUI.setRoot("help_view.fxml");
     }
 
     private void goToAdminPage() {

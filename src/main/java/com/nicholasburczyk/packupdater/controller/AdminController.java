@@ -1,5 +1,6 @@
 package com.nicholasburczyk.packupdater.controller;
 
+import com.nicholasburczyk.packupdater.GUI;
 import com.nicholasburczyk.packupdater.Main;
 import com.nicholasburczyk.packupdater.config.ConfigManager;
 import com.nicholasburczyk.packupdater.model.Config;
@@ -156,7 +157,7 @@ public class AdminController implements Initializable {
 
     @FXML
     private void goToMain(ActionEvent event) throws Exception {
-        Main.setRoot("main_view.fxml");
+        GUI.setRoot("main_view.fxml");
     }
 
     @FXML
