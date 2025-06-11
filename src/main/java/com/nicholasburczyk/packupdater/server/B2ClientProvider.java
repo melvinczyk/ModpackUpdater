@@ -106,7 +106,7 @@ public class B2ClientProvider {
                         info.setDisplayName(displayName);
                     }
 
-                    modpacks.put(root, info);
+                    modpacks.put(info.getModpackId(), info);
 
                 } catch (NoSuchKeyException e) {
                     System.err.println("manifest.json not found for modpack root: " + root);

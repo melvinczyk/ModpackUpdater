@@ -39,7 +39,7 @@
 
                 <VBox spacing="15"
                       style="-fx-background-color: rgba(255, 152, 0, 0.15); -fx-background-radius: 12; -fx-padding: 20; -fx-effect: dropshadow(gaussian, rgba(255,152,0,0.2), 3, 0, 0, 1); -fx-border-color: rgba(255, 152, 0, 0.3); -fx-border-width: 2; -fx-border-radius: 12;">
-                    <Label text="⚠️ Important Settings (PLEASE READ!!!!)"
+                    <Label text="⚠ Important Settings (PLEASE READ!!!!)"
                            style="-fx-text-fill: #FFB74D; -fx-font-size: 20px; -fx-font-weight: bold; -fx-font-family: 'Segoe UI', sans-serif;"/>
 
                     <VBox spacing="10"
@@ -114,7 +114,7 @@
                         </HBox>
 
                         <HBox spacing="12" alignment="CENTER_LEFT">
-                            <Label text="⚙️" style="-fx-text-fill: #EF9A9A; -fx-font-size: 16px;"/>
+                            <Label text="⚙" style="-fx-text-fill: #EF9A9A; -fx-font-size: 16px;"/>
                             <Label text="Settings:"
                                    style="-fx-text-fill: #EF9A9A; -fx-font-size: 15px; -fx-font-weight: bold;"/>
                             <Label wrapText="true"

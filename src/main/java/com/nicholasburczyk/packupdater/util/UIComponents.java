@@ -81,7 +81,7 @@ public class UIComponents {
 
                 updateButton.setOnAction(e -> {
                     System.out.println("Updating modpack: " + modpack.getModpackId());
-                    ModpackInfo remoteModpack = ModpackRegistry.getServerModpacks().get(modpack.getRoot());
+                    ModpackInfo remoteModpack = ModpackRegistry.getServerModpacks().get(modpack.getModpackId());
                     if (remoteModpack != null) {
                         ModpackUpdater.applyUpdates(modpack, remoteModpack);
                         descLabel.setText("MC: " + modpack.getMinecraftVersion() + " | " + modpack.getModLoader() + ": " + modpack.getModLoaderVersion() + " | Version: " + modpack.getVersion());
