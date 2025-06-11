@@ -22,7 +22,7 @@
                         style="-fx-background-color: #5a5a5a; -fx-text-fill: white; -fx-background-radius: 6; -fx-font-size: 12px; -fx-padding: 8 16;"
                         onAction="#goToMain"/>
 
-                <Label text="⚙️ Settings" style="-fx-text-fill: #e0e0e0; -fx-font-size: 24px; -fx-font-weight: bold;">
+                <Label text="⚙ Settings" style="-fx-text-fill: #e0e0e0; -fx-font-size: 24px; -fx-font-weight: bold;">
                     <font>
                         <Font name="System Bold" size="24.0"/>
                     </font>
@@ -66,10 +66,10 @@
                         </HBox>
 
                         <HBox spacing="8" alignment="CENTER_LEFT">
-                            <Label fx:id="pathStatusIcon" text="⚠️" style="-fx-font-size: 14px;"/>
+                            <Label fx:id="pathStatusIcon" text="⚠" style="-fx-font-size: 14px;"/>
                             <Label fx:id="pathStatusLabel" text="Please select your CurseForge instances folder"
                                    style="-fx-text-fill: #FF9800; -fx-font-size: 11px;"/>
-                            <Label fx:id="pathStatusIconFalsePath" text="⚠️" style="-fx-font-size: 14px;"/>
+                            <Label fx:id="pathStatusIconFalsePath" text="⚠" style="-fx-font-size: 14px;"/>
                             <Label fx:id="pathStatusLabelFalsePath"
                                    text="Not the correct 'curseforge/minecraft/Instances' folder."
                                    style="-fx-text-fill: #FF9800; -fx-font-size: 11px;"/>

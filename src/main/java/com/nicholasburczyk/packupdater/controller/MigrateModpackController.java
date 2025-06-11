@@ -116,7 +116,7 @@ public class MigrateModpackController {
 
             compareModpackFiles(selectedFolder, selectedModpackInfo.getRoot(), localManifest.getFolders());
 
-            ModpackRegistry.addLocalModpack(localManifest.getRoot(), localManifest);
+            ModpackRegistry.addLocalModpack(localManifest.getModpackId(), localManifest);
             confirmed = true;
             dialogStage.close();
 

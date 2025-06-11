@@ -43,7 +43,7 @@ public class GUI extends Application {
                     if (manifestFile.exists()) {
                         try {
                             ModpackInfo info = mapper.readValue(manifestFile, ModpackInfo.class);
-                            localModpacks.put(folder.getName(), info);
+                            localModpacks.put(info.getModpackId(), info);
                         } catch (IOException e) {
                             System.err.println("Failed to load manifest in " + folder.getName() + ": " + e.getMessage());
                         }

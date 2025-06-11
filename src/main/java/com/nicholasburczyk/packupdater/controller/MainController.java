@@ -234,8 +234,13 @@ public class MainController {
             int totalUpdates = 0;
 
             for (String modpackId : localModpacks.keySet()) {
+                System.out.println("modpackId: " + modpackId);
                 ModpackInfo local = localModpacks.get(modpackId);
                 ModpackInfo server = serverModpacks.get(modpackId);
+                System.out.println("localModpacks: " + localModpacks);
+                System.out.println("serverModpacks: " + serverModpacks);
+                System.out.println("local: " + local);
+                System.out.println("server: " + server);
 
                 if (server != null) {
                     int updates = UpdateChecker.countUpdatesAvailable(server, local);

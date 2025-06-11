@@ -32,3 +32,90 @@ shadowJar {
     archiveClassifier = ''
     mergeServiceFiles()
 }
+
+task createWindowsExe {
+    dependsOn shadowJar
+    group = 'distribution'
+    description = 'Creates Windows installer using jpackage'
+
+    doLast {
+        def jarFile = shadowJar.archiveFile.get().asFile
+        def outputDir = file("${buildDir}/installers")
+        outputDir.mkdirs()
+
+        exec {
+            commandLine 'jpackage',
+                    '--input', jarFile.parent,
+                    '--main-jar', jarFile.name,
+                    '--main-class', application.mainClass.get(),
+                    '--name', 'PackUpdater',
+                    '--app-version', version,
+                    '--dest', outputDir.absolutePath,
+                    '--type', 'exe',
+                    '--win-dir-chooser',
+                    '--win-shortcut',
+                    '--win-menu',
+                    '--runtime-image', System.getProperty('java.home'),
+                    '--java-options', '-Djava.awt.headless=false',
+                    '--java-options', '--add-modules=javafx.controls,javafx.fxml',
+                    '--verbose'
+        }
+    }
+}
+
+task createMacDmg {
+    dependsOn shadowJar
+    group = 'distribution'
+    description = 'Creates Mac DMG using jpackage'
+
+    doLast {
+        def jarFile = shadowJar.archiveFile.get().asFile
+        def outputDir = file("${buildDir}/installers")
+        outputDir.mkdirs()
+
+        exec {
+            commandLine 'jpackage',
+                    '--input', jarFile.parent,
+                    '--main-jar', jarFile.name,
+                    '--main-class', application.mainClass.get(),
+                    '--name', 'PackUpdater',
+                    '--app-version', version,
+                    '--dest', outputDir.absolutePath,
+                    '--type', 'dmg',
+                    '--verbose'
+        }
+    }
+}
+
+task createLaunchers {
+    dependsOn shadowJar
+    group = 'distribution'
+    description = 'Creates simple launcher scripts'
+
+    doLast {
+        def jarFile = shadowJar.archiveFile.get().asFile
+        def launchersDir = file("${buildDir}/launchers")
+        launchersDir.mkdirs()
+
+        copy {
+            from jarFile
+            into launchersDir
+        }
+
+        def batFile = file("${launchersDir}/PackUpdater.bat")
+        batFile.text = """@echo off
+cd /d "%~dp0"
+java -jar ${jarFile.name}
+pause
+"""
+
+        def shFile = file("${launchersDir}/PackUpdater.sh")
+        shFile.text = """#!/bin/bash
+cd "\$(dirname "\$0")"
+java -jar ${jarFile.name}
+"""
+        shFile.setExecutable(true)
+
+        println "Launchers created in: ${launchersDir}"
+    }
+}

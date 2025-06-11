@@ -135,6 +135,6 @@ public class ModpackInfo {
 
     @Override
     public String toString() {
-        return String.format("%s %s - Version: %s", modLoader, modLoaderVersion, version);
+        return String.format("%s - root: %s - %s %s - Version: %s", modpackId, root,modLoader, modLoaderVersion, version);
     }
 }
