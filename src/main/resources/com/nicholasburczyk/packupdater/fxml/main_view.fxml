@@ -55,6 +55,9 @@
                 <Button text="Help"
                         style="-fx-background-color: #FF6B35; -fx-text-fill: white; -fx-background-radius: 8; -fx-font-size: 12px; -fx-padding: 8 16;"
                         onAction="#goToHelp"/>
+                <Button fx:id="softwareUpdateButton" text="Software Update Available"
+                        style="-fx-background-color: #2196F3; -fx-text-fill: white; -fx-background-radius: 8; -fx-font-size: 12px; -fx-padding: 8 16;"
+                        onAction="#performUpdate"/>
 
                 <Region HBox.hgrow="ALWAYS"/>
 

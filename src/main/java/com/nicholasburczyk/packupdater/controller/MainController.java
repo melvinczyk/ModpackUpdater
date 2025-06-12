@@ -2,7 +2,6 @@ package com.nicholasburczyk.packupdater.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nicholasburczyk.packupdater.GUI;
-import com.nicholasburczyk.packupdater.Main;
 import com.nicholasburczyk.packupdater.config.ConfigManager;
 import com.nicholasburczyk.packupdater.model.Config;
 import com.nicholasburczyk.packupdater.model.ModpackInfo;
@@ -10,6 +9,7 @@ import com.nicholasburczyk.packupdater.server.B2ClientProvider;
 import com.nicholasburczyk.packupdater.server.ConnectionStatus;
 import com.nicholasburczyk.packupdater.server.ModpackRegistry;
 import com.nicholasburczyk.packupdater.util.ModpackUIHelper;
+import com.nicholasburczyk.packupdater.util.SoftwareUpdateManager;
 import com.nicholasburczyk.packupdater.util.UpdateChecker;
 import javafx.application.Platform;
 import javafx.concurrent.Task;
@@ -49,6 +49,8 @@ public class MainController {
     private Label updatesAvailableLabel;
     @FXML
     private Label totalLocalModpacksLabel;
+    @FXML
+            private Button softwareUpdateButton;
 
     Config config = ConfigManager.getInstance().getConfig();
 
@@ -70,6 +72,13 @@ public class MainController {
 
         Task<Void> fetchModpacksTask = getTask();
         new Thread(fetchModpacksTask).start();
+
+        boolean updateAvailable = SoftwareUpdateManager.checkForUpdate();
+
+        if (!updateAvailable) {
+            softwareUpdateButton.setVisible(false);
+            softwareUpdateButton.setManaged(false);
+        }
     }
 
     @FXML
@@ -179,6 +188,28 @@ public class MainController {
             ex.printStackTrace();
         }
     }
+
+    @FXML
+    private void performUpdate(ActionEvent event) {
+        if (SoftwareUpdateManager.performUpdate()) {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.setTitle("Restart Required");
+            alert.setHeaderText(null);
+            alert.setContentText("The software has been updated. Please restart the application for the changes to take effect.");
+            alert.showAndWait();
+            softwareUpdateButton.setVisible(false);
+        }
+        else {
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setTitle("Error");
+            alert.setHeaderText(null);
+            alert.setContentText("There has been an error downloading the latest version. See console for details.");
+            alert.showAndWait();
+        }
+
+    }
+
+
 
     @FXML
     private void refreshModpackList(ActionEvent event) {
