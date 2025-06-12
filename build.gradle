@@ -4,7 +4,7 @@ plugins {
     id 'com.github.johnrengelman.shadow' version '8.1.1'
 }
 
-version = '1.0'
+version = '1.1'
 
 repositories {
     mavenCentral()
@@ -16,6 +16,7 @@ dependencies {
     implementation 'com.fasterxml.jackson.core:jackson-annotations:2.15.2'
     implementation 'software.amazon.awssdk:s3:2.25.0'
     implementation 'org.slf4j:slf4j-simple:2.0.13'
+    implementation 'org.json:json:20231013'
 }
 
 javafx {
@@ -33,36 +34,80 @@ shadowJar {
     mergeServiceFiles()
 }
 
-
 task createLaunchers {
     dependsOn shadowJar
     group = 'distribution'
-    description = 'Creates simple launcher scripts'
+    description = 'Creates simple launcher scripts and platform-specific zip packages.'
 
     doLast {
         def jarFile = shadowJar.archiveFile.get().asFile
         def launchersDir = file("${buildDir}/launchers")
         launchersDir.mkdirs()
 
+        // === MACOS PACKAGE ===
+        def macDir = new File(launchersDir, "GroidPack Updater-MacOS")
+        macDir.mkdirs()
+
+        def macCommand = new File(macDir, "(CLICK TO RUN) PackUpdater.command")
+        macCommand.text = """#!/bin/bash
+                        cd "\$(dirname "\$0")"
+                        java -jar ${jarFile.name}
+                        """
+        macCommand.setExecutable(true)
+
         copy {
             from jarFile
-            into launchersDir
+            into macDir
         }
 
-        def batFile = file("${launchersDir}/PackUpdater.bat")
-        batFile.text = """@echo off
-cd /d "%~dp0"
-java -jar ${jarFile.name}
-pause
-"""
+        copy {
+            from("src/main/resources/com/nicholasburczyk/packupdater/images/folder.icns")
+            into macDir
+        }
 
-        def shFile = file("${launchersDir}/PackUpdater.sh")
-        shFile.text = """#!/bin/bash
-cd "\$(dirname "\$0")"
-java -jar ${jarFile.name}
-"""
-        shFile.setExecutable(true)
+        zipDir(macDir, new File(launchersDir, "GroidPack Updater-MacOS.zip"))
 
-        println "Launchers created in: ${launchersDir}"
+        // === WINDOWS PACKAGE ===
+        def winDir = new File(launchersDir, "GroidPack Updater-Windows")
+        winDir.mkdirs()
+
+        def winBat = new File(winDir, "(CLICK ME) PackUpdater.bat")
+        winBat.text = """@echo off
+                    cd /d "%~dp0"
+                    java -jar ${jarFile.name}
+                    pause
+                    """
+
+        def iconSetupBat = new File(winDir, "icon_setup.bat")
+        iconSetupBat.text = """@echo off
+                        attrib +r "../GroidPack Updater-Windows"
+                        attrib +h "../GroidPack Updater-Windows\\desktop.ini"
+                        ie4uinit.exe -show
+                        pause
+                        """
+
+        def desktopIni = new File(winDir, "desktop.ini")
+        desktopIni.text = """[.ShellClassInfo]
+                        IconResource=folder.ico,0
+                        InfoTip=Double-click to launch PackUpdater
+                        """
+
+        copy {
+            from jarFile
+            into winDir
+        }
+
+        copy {
+            from("src/main/resources/com/nicholasburczyk/packupdater/images/folder.ico")
+            into winDir
+        }
+
+        zipDir(winDir, new File(launchersDir, "GroidPack Updater-Windows.zip"))
+
+        println "Platform-specific launchers created in: ${launchersDir}"
     }
+}
+
+void zipDir(File sourceDir, File zipFile) {
+    ant.zip(destfile: zipFile, basedir: sourceDir)
 }
