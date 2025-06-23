@@ -27,6 +27,7 @@ This app keeps consistent modpack versions across all clients by:
 - Ability to update existing added modpacks to latest version
 - Ability to view changelogs of the modpacks
 - Full admin panel equiped with update pushes, new folder tracking declarations, and new server modpack additions
+- Future software update download and installing
 
 ## How to track a local modpack
 
