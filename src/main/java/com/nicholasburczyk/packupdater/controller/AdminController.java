@@ -102,6 +102,8 @@ public class AdminController implements Initializable {
     private TextField newVersionField;
     @FXML
     private TextField changelogMessageField;
+    @FXML
+    private VBox filesContainer;
 
     private Config config = ConfigManager.getInstance().getConfig();
     private List<FileChange> allChanges = new ArrayList<>();
@@ -110,6 +112,9 @@ public class AdminController implements Initializable {
     private Map<String, HBox> changeDisplayBoxes = new HashMap<>();
     private Set<String> selectedFolders = new HashSet<>();
     private Map<String, CheckBox> folderCheckBoxes = new HashMap<>();
+    private Set<String> selectedFiles = new HashSet<>();
+    private Map<String, CheckBox> fileCheckBoxes = new HashMap<>();
+
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
@@ -127,6 +132,12 @@ public class AdminController implements Initializable {
         serverModpackSelector.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
             if (newVal != null) {
                 loadExistingFolders();
+            }
+        });
+
+        serverModpackSelector.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal != null) {
+                loadExistingFiles();
             }
         });
     }
@@ -282,18 +293,26 @@ public class AdminController implements Initializable {
             return;
         }
 
-        Set<String> previouslySelected = new HashSet<>(selectedFolders);
+        Set<String> previouslySelectedFolders = new HashSet<>(selectedFolders);
+        Set<String> previouslySelectedFiles = new HashSet<>(selectedFiles);
 
         initializeFolderManagement();
 
-        for (String folder : previouslySelected) {
+        for (String folder : previouslySelectedFolders) {
             if (folderCheckBoxes.containsKey(folder)) {
                 folderCheckBoxes.get(folder).setSelected(true);
                 selectedFolders.add(folder);
             }
         }
 
-        statusLabel.setText("Folders refreshed from local modpack.");
+        for (String file : previouslySelectedFiles) {
+            if (fileCheckBoxes.containsKey(file)) {
+                fileCheckBoxes.get(file).setSelected(true);
+                selectedFiles.add(file);
+            }
+        }
+
+        statusLabel.setText("Folders and files refreshed from local modpack.");
     }
 
     @FXML
@@ -366,9 +385,15 @@ public class AdminController implements Initializable {
         folderCheckBoxes.clear();
         selectedFolders.clear();
 
+        filesContainer.getChildren().clear();
+        fileCheckBoxes.clear();
+        selectedFiles.clear();
+
         loadFoldersFromLocalModpack();
+        loadFilesFromLocalModpack();
 
         loadExistingFolders();
+        loadExistingFiles();
     }
 
     private void loadFoldersFromLocalModpack() {
@@ -412,6 +437,62 @@ public class AdminController implements Initializable {
         }
     }
 
+    private void loadFilesFromLocalModpack() {
+        String localModpackName = localModpackSelector.getSelectionModel().getSelectedItem();
+        if (localModpackName == null) {
+            return;
+        }
+
+        ModpackInfo localModpack = ModpackRegistry.getLocalModpacks().get(localModpackName);
+        if (localModpack == null) {
+            return;
+        }
+
+        File localModpackPath = new File(config.getCurseforge_path(), localModpack.getRoot());
+        if (!localModpackPath.exists() || !localModpackPath.isDirectory()) {
+            return;
+        }
+
+        try {
+            File[] files = localModpackPath.listFiles(File::isFile);
+            if (files != null) {
+                Arrays.sort(files, Comparator.comparing(File::getName));
+
+                for (File file : files) {
+                    String fileName = file.getName();
+
+                    if (shouldIgnoreFile(fileName)) {
+                        continue;
+                    }
+
+                    addFileCheckBox(fileName, false);
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error scanning local modpack files: " + e.getMessage());
+            showAlert("Error scanning local modpack files: " + e.getMessage(), Alert.AlertType.ERROR);
+        }
+    }
+
+    private void loadExistingFiles() {
+        String serverModpackName = serverModpackSelector.getSelectionModel().getSelectedItem();
+        if (serverModpackName != null) {
+            ModpackInfo serverModpack = ModpackRegistry.getServerModpacks().get(serverModpackName);
+            if (serverModpack != null && serverModpack.getFiles() != null) {
+                for (String file : serverModpack.getFiles()) {
+                    if (fileCheckBoxes.containsKey(file)) {
+                        fileCheckBoxes.get(file).setSelected(true);
+                        selectedFiles.add(file);
+                    } else {
+                        addFileCheckBox(file + " (missing locally)", false);
+                        fileCheckBoxes.get(file + " (missing locally)").setDisable(true);
+                        fileCheckBoxes.get(file + " (missing locally)").setStyle("-fx-text-fill: #ff6b6b; -fx-font-size: 12px;");
+                    }
+                }
+            }
+        }
+    }
+
     private void loadExistingFolders() {
         String serverModpackName = serverModpackSelector.getSelectionModel().getSelectedItem();
         if (serverModpackName != null) {
@@ -449,6 +530,27 @@ public class AdminController implements Initializable {
 
         if (selected) {
             selectedFolders.add(folderName);
+        }
+    }
+
+    private void addFileCheckBox(String fileName, boolean selected) {
+        CheckBox checkBox = new CheckBox(fileName);
+        checkBox.setSelected(selected);
+        checkBox.setStyle("-fx-text-fill: #e0e0e0; -fx-font-size: 12px;");
+
+        checkBox.setOnAction(e -> {
+            if (checkBox.isSelected()) {
+                selectedFiles.add(fileName);
+            } else {
+                selectedFiles.remove(fileName);
+            }
+        });
+
+        fileCheckBoxes.put(fileName, checkBox);
+        filesContainer.getChildren().add(checkBox);
+
+        if (selected) {
+            selectedFiles.add(fileName);
         }
     }
 
@@ -529,6 +631,12 @@ public class AdminController implements Initializable {
         }
         manifestJson.set("folders", foldersArray);
 
+        ArrayNode filesArray = mapper.createArrayNode();
+        for (String file : selectedFiles) {
+            filesArray.add(file);
+        }
+        manifestJson.set("files", filesArray);
+
         ArrayNode changelog = (ArrayNode) manifestJson.get("changelog");
         if (changelog == null) {
             changelog = mapper.createArrayNode();
@@ -597,6 +705,12 @@ public class AdminController implements Initializable {
         }
         manifestJson.set("folders", foldersArray);
 
+        ArrayNode filesArray = mapper.createArrayNode();
+        for (String file : selectedFiles) {
+            filesArray.add(file);
+        }
+        manifestJson.set("files", filesArray);
+
         ArrayNode changelog = (ArrayNode) manifestJson.get("changelog");
         if (changelog == null) {
             changelog = mapper.createArrayNode();
@@ -639,20 +753,21 @@ public class AdminController implements Initializable {
 
     private String createBasicManifest(ModpackInfo modpack) {
         return String.format("""
-                        {
-                            "modpackId": "%s",
-                            "displayName": "%s",
-                            "author": "Admin",
-                            "description": "Modpack managed via admin panel",
-                            "version": "1.0.0",
-                            "minecraftVersion": "1.20.1",
-                            "modLoader": "Forge",
-                            "modLoaderVersion": "47.3.22",
-                            "created": "%s",
-                            "lastUpdated": "%s",
-                            "folders": [],
-                            "changelog": []
-                        }""",
+                    {
+                        "modpackId": "%s",
+                        "displayName": "%s",
+                        "author": "Admin",
+                        "description": "Modpack managed via admin panel",
+                        "version": "1.0.0",
+                        "minecraftVersion": "1.20.1",
+                        "modLoader": "Forge",
+                        "modLoaderVersion": "47.3.22",
+                        "created": "%s",
+                        "lastUpdated": "%s",
+                        "folders": [],
+                        "files": [],
+                        "changelog": []
+                    }""",
                 modpack.getRoot(),
                 modpack.getRoot(),
                 Instant.now().toString(),
@@ -670,13 +785,17 @@ public class AdminController implements Initializable {
             throw new Exception("Modpack information not found");
         }
 
-        if (selectedFolders.isEmpty()) {
-            throw new Exception("No folders selected for comparison. Please select at least one folder.");
+        if (selectedFolders.isEmpty() && selectedFiles.isEmpty()) {
+            throw new Exception("No folders or files selected for comparison. Please select at least one folder or file.");
         }
 
         File localModpackPath = new File(config.getCurseforge_path(), localModpack.getRoot());
 
-        Map<String, FileInfo> serverFiles = getServerFileInfo(serverModpack.getRoot(), new ArrayList<>(selectedFolders));
+        List<String> allTargets = new ArrayList<>();
+        allTargets.addAll(selectedFolders);
+        allTargets.addAll(selectedFiles);
+
+        Map<String, FileInfo> serverFiles = getServerFileInfo(serverModpack.getRoot(), allTargets, true);
 
         Set<String> processedFiles = new HashSet<>();
 
@@ -710,6 +829,34 @@ public class AdminController implements Initializable {
                                 System.err.println("Error processing file: " + localFile + ", " + e.getMessage());
                             }
                         });
+            }
+        }
+
+        for (String fileName : selectedFiles) {
+            if (fileName.contains("(missing locally)")) {
+                continue;
+            }
+
+            File localFile = new File(localModpackPath, fileName);
+            if (localFile.exists() && localFile.isFile()) {
+                try {
+                    String serverPath = serverModpack.getRoot() + "/" + fileName;
+                    processedFiles.add(serverPath);
+
+                    long localSize = Files.size(localFile.toPath());
+                    String localMd5 = calculateMD5(localFile.toPath());
+
+                    if (!serverFiles.containsKey(serverPath)) {
+                        changes.add(new FileChange(fileName, FileChangeType.ADDED, localSize, localMd5, null, 0));
+                    } else {
+                        FileInfo serverInfo = serverFiles.get(serverPath);
+                        if (localSize != serverInfo.size || !localMd5.equals(serverInfo.md5)) {
+                            changes.add(new FileChange(fileName, FileChangeType.MODIFIED, localSize, localMd5, serverInfo.md5, serverInfo.size));
+                        }
+                    }
+                } catch (IOException e) {
+                    System.err.println("Error processing file: " + localFile + ", " + e.getMessage());
+                }
             }
         }
 
@@ -755,28 +902,58 @@ public class AdminController implements Initializable {
         return false;
     }
 
-    private Map<String, FileInfo> getServerFileInfo(String serverRoot, List<String> folders) {
+    private Map<String, FileInfo> getServerFileInfo(String serverRoot, List<String> targets, boolean includeFiles) {
         Map<String, FileInfo> serverFiles = new ConcurrentHashMap<>();
         S3Client client = B2ClientProvider.getClient();
         String bucketName = config.getBucketName();
 
-        for (String folder : folders) {
-            String prefix = serverRoot + "/" + folder + "/";
+        for (String target : targets) {
+            if (includeFiles && selectedFiles.contains(target)) {
+                String filePath = serverRoot + "/" + target;
+                try {
+                    ListObjectsV2Request request = ListObjectsV2Request.builder()
+                            .bucket(bucketName)
+                            .prefix(filePath)
+                            .build();
 
-            ListObjectsV2Request request = ListObjectsV2Request.builder()
-                    .bucket(bucketName)
-                    .prefix(prefix)
-                    .build();
+                    ListObjectsV2Response response = client.listObjectsV2(request);
 
-            ListObjectsV2Response response = client.listObjectsV2(request);
+                    for (S3Object object : response.contents()) {
+                        String key = object.key();
+                        if (key.equals(filePath)) {
+                            String fileName = key.substring(key.lastIndexOf('/') + 1);
+                            if (!shouldIgnoreFile(fileName)) {
+                                String md5Hash = object.eTag().replace("\"", "");
+                                serverFiles.put(key, new FileInfo(md5Hash, object.size()));
+                            }
+                            break;
+                        }
+                    }
+                } catch (Exception e) {
+                    System.err.println("Error fetching server file info for: " + target + ", " + e.getMessage());
+                }
+            } else if (selectedFolders.contains(target)) {
+                String prefix = serverRoot + "/" + target + "/";
 
-            for (S3Object object : response.contents()) {
-                String key = object.key();
+                try {
+                    ListObjectsV2Request request = ListObjectsV2Request.builder()
+                            .bucket(bucketName)
+                            .prefix(prefix)
+                            .build();
 
-                String fileName = key.substring(key.lastIndexOf('/') + 1);
-                if (!shouldIgnoreFile(fileName)) {
-                    String md5Hash = object.eTag().replace("\"", "");
-                    serverFiles.put(key, new FileInfo(md5Hash, object.size()));
+                    ListObjectsV2Response response = client.listObjectsV2(request);
+
+                    for (S3Object object : response.contents()) {
+                        String key = object.key();
+
+                        String fileName = key.substring(key.lastIndexOf('/') + 1);
+                        if (!shouldIgnoreFile(fileName)) {
+                            String md5Hash = object.eTag().replace("\"", "");
+                            serverFiles.put(key, new FileInfo(md5Hash, object.size()));
+                        }
+                    }
+                } catch (Exception e) {
+                    System.err.println("Error fetching server file info for folder: " + target + ", " + e.getMessage());
                 }
             }
         }

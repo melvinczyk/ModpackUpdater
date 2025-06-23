@@ -22,6 +22,7 @@ public class ModpackInfo {
     private String lastUpdated;
 
     private List<String> folders;
+    private List<String> files;
     private List<ChangelogEntry> changelog;
 
     // --- Getters ---
@@ -136,5 +137,13 @@ public class ModpackInfo {
     @Override
     public String toString() {
         return String.format("%s - root: %s - %s %s - Version: %s", modpackId, root,modLoader, modLoaderVersion, version);
+    }
+
+    public List<String> getFiles() {
+        return files;
+    }
+
+    public void setFiles(List<String> files) {
+        this.files = files;
     }
 }

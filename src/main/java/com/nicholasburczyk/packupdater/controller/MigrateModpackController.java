@@ -114,7 +114,7 @@ public class MigrateModpackController {
             List<String> foldersToLook = localManifest.getFolders();
             foldersToLook.add("profileImage");
 
-            compareModpackFiles(selectedFolder, selectedModpackInfo.getRoot(), localManifest.getFolders());
+            compareModpackFiles(selectedFolder, selectedModpackInfo.getRoot(), localManifest.getFolders(), localManifest.getFiles());
 
             ModpackRegistry.addLocalModpack(localManifest.getModpackId(), localManifest);
             confirmed = true;
@@ -150,7 +150,7 @@ public class MigrateModpackController {
     }
 
 
-    private void compareModpackFiles(File localRoot, String serverRootKey, List<String> folders) {
+    private void compareModpackFiles(File localRoot, String serverRootKey, List<String> folders, List<String> files) {
         S3Client client = B2ClientProvider.getClient();
         String bucketName = config.getBucketName();
 
@@ -158,6 +158,7 @@ public class MigrateModpackController {
         Set<String> allowedFolders = folders.stream().map(f -> serverRootKey + "/" + f + "/").collect(Collectors.toSet());
 
         try {
+            // Handle folders (existing logic)
             for (String folder : folders) {
                 String prefix = serverRootKey + "/" + folder + "/";
                 ListObjectsV2Request request = ListObjectsV2Request.builder()
@@ -172,8 +173,27 @@ public class MigrateModpackController {
                 }
             }
 
+            // Handle root files (new logic)
+            if (files != null && !files.isEmpty()) {
+                for (String file : files) {
+                    String fileKey = serverRootKey + "/" + file;
+                    try {
+                        HeadObjectRequest headRequest = HeadObjectRequest.builder()
+                                .bucket(bucketName)
+                                .key(fileKey)
+                                .build();
+                        HeadObjectResponse headResponse = client.headObject(headRequest);
+                        String md5Hash = headResponse.eTag().replace("\"", "");
+                        serverFileInfo.put(fileKey, new FileInfo(md5Hash, headResponse.contentLength()));
+                    } catch (NoSuchKeyException e) {
+                        System.out.println("Root file not found on server: " + fileKey);
+                    }
+                }
+            }
+
             Path localRootPath = localRoot.toPath();
 
+            // Create set of local relative paths for folders
             Set<String> localRelativePaths = Files.walk(localRootPath)
                     .filter(Files::isRegularFile)
                     .filter(path -> folders.stream().anyMatch(folder -> path.toString().replace("\\", "/").contains("/" + folder + "/")))
@@ -182,8 +202,17 @@ public class MigrateModpackController {
                     .map(path -> serverRootKey + "/" + path.replace("\\", "/"))
                     .collect(Collectors.toSet());
 
+            // Handle folder files (existing logic)
             for (String serverPath : serverFileInfo.keySet()) {
-                if (allowedFolders.stream().noneMatch(serverPath::startsWith)) continue;
+                if (allowedFolders.stream().noneMatch(serverPath::startsWith)) {
+                    // Check if this is a root file
+                    boolean isRootFile = files != null && files.stream()
+                            .anyMatch(file -> serverPath.equals(serverRootKey + "/" + file));
+
+                    if (!isRootFile) {
+                        continue;
+                    }
+                }
 
                 String relativePath = serverPath.substring(serverRootKey.length() + 1);
                 Path localFilePath = localRootPath.resolve(relativePath);
@@ -206,6 +235,7 @@ public class MigrateModpackController {
                 }
             }
 
+            // Delete extra local files in folders (existing logic)
             Files.walk(localRootPath)
                     .filter(Files::isRegularFile)
                     .filter(path -> folders.stream().anyMatch(folder -> path.toString().replace("\\", "/").contains("/" + folder + "/")))
@@ -222,6 +252,29 @@ public class MigrateModpackController {
                             }
                         }
                     });
+
+            // Delete extra local root files (new logic)
+            if (files != null && !files.isEmpty()) {
+                Files.list(localRootPath)
+                        .filter(Files::isRegularFile)
+                        .forEach(localFile -> {
+                            String fileName = localFile.getFileName().toString();
+                            String fullServerKey = serverRootKey + "/" + fileName;
+
+                            // Check if this root file should exist according to server
+                            boolean shouldExist = files.contains(fileName) && serverFileInfo.containsKey(fullServerKey);
+
+                            // If it's a tracked root file but doesn't exist on server, delete it
+                            if (files.contains(fileName) && !shouldExist) {
+                                try {
+                                    System.out.println(">> Deleting extra local root file: " + fileName);
+                                    Files.delete(localFile);
+                                } catch (IOException e) {
+                                    System.err.println("Failed to delete: " + localFile + " (" + e.getMessage() + ")");
+                                }
+                            }
+                        });
+            }
 
         } catch (IOException e) {
             e.printStackTrace();
