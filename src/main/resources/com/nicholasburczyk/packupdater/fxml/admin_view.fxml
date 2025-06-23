@@ -76,10 +76,10 @@
                 </HBox>
             </VBox>
 
-            <!-- Folder Section -->
+            <!-- Folder & File Management Section -->
             <VBox spacing="15" style="-fx-background-color: #3a3a3a; -fx-background-radius: 12; -fx-padding: 20;"
-                  prefHeight="250">
-                <Label text="📁 Folder Management"
+                  prefHeight="350">
+                <Label text="📁 Folder and File Management"
                        style="-fx-text-fill: #e0e0e0; -fx-font-size: 16px; -fx-font-weight: bold;">
                     <font>
                         <Font name="System Bold" size="16.0"/>
@@ -88,9 +88,9 @@
 
                 <HBox spacing="20" alignment="TOP_LEFT" VBox.vgrow="ALWAYS">
                     <VBox spacing="10" prefWidth="300" minWidth="280">
-                        <Label text="Folders to Include:"
+                        <Label text="Items to Include:"
                                style="-fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 14px;"/>
-                        <Label text="Select which folders to compare and sync during modpack operations. Only checked folders will be included in comparisons and uploads."
+                        <Label text="Select which folders and files to compare and sync during modpack operations. Only checked items will be included in comparisons and uploads."
                                style="-fx-text-fill: #bbbbbb; -fx-font-size: 12px;" wrapText="true"/>
 
                         <HBox spacing="10" alignment="CENTER_LEFT">
@@ -98,31 +98,37 @@
                                     onAction="#refreshFolders"
                                     style="-fx-background-color: #2196F3; -fx-text-fill: white; -fx-font-size: 12px; -fx-padding: 8 16; -fx-background-radius: 6;"/>
                         </HBox>
-
-                        <Label fx:id="folderCountLabel" text="0 folders found"
-                               style="-fx-text-fill: #888888; -fx-font-size: 11px; -fx-font-style: italic;"/>
                     </VBox>
 
-                    <VBox spacing="5" HBox.hgrow="ALWAYS">
-                        <Label text="Available Folders:"
-                               style="-fx-text-fill: #e0e0e0; -fx-font-size: 14px; -fx-font-weight: bold;"/>
+                    <HBox spacing="15" HBox.hgrow="ALWAYS">
+                        <VBox spacing="5" HBox.hgrow="ALWAYS">
+                            <Label text="Available Folders:"
+                                   style="-fx-text-fill: #e0e0e0; -fx-font-size: 14px; -fx-font-weight: bold;"/>
 
-                        <ScrollPane fitToWidth="true" prefHeight="180" VBox.vgrow="ALWAYS"
-                                    style="-fx-background: #2b2b2b; -fx-background-color: #2b2b2b; -fx-border-color: #555555; -fx-border-width: 1; -fx-border-radius: 6;">
-                            <VBox fx:id="foldersContainer" spacing="8"
-                                  style="-fx-padding: 15; -fx-background-color: #2b2b2b;">
-                                <Label text="Click 'Refresh Folders' to scan for available folders in your modpack directory."
-                                       style="-fx-text-fill: #bbbbbb; -fx-font-size: 12px; -fx-font-style: italic;"/>
-                            </VBox>
-                        </ScrollPane>
+                            <ScrollPane fitToWidth="true" prefHeight="220" VBox.vgrow="ALWAYS"
+                                        style="-fx-background: #2b2b2b; -fx-background-color: #2b2b2b; -fx-border-color: #555555; -fx-border-width: 1; -fx-border-radius: 6;">
+                                <VBox fx:id="foldersContainer" spacing="8"
+                                      style="-fx-padding: 15; -fx-background-color: #2b2b2b;">
+                                    <Label text="Click 'Refresh Folders' to scan for available folders in your modpack directory."
+                                           style="-fx-text-fill: #bbbbbb; -fx-font-size: 12px; -fx-font-style: italic;"/>
+                                </VBox>
+                            </ScrollPane>
+                        </VBox>
 
-                        <HBox spacing="15" alignment="CENTER_LEFT">
-                            <Label fx:id="selectedFoldersLabel" text="0 folders selected"
-                                   style="-fx-text-fill: #4CAF50; -fx-font-size: 12px; -fx-font-weight: bold;"/>
-                            <Label fx:id="folderSizeLabel" text="Total size: 0 MB"
-                                   style="-fx-text-fill: #888888; -fx-font-size: 11px;"/>
-                        </HBox>
-                    </VBox>
+                        <VBox spacing="5" HBox.hgrow="ALWAYS">
+                            <Label text="Available Files:"
+                                   style="-fx-text-fill: #e0e0e0; -fx-font-size: 14px; -fx-font-weight: bold;"/>
+
+                            <ScrollPane fitToWidth="true" prefHeight="220" VBox.vgrow="ALWAYS"
+                                        style="-fx-background: #2b2b2b; -fx-background-color: #2b2b2b; -fx-border-color: #555555; -fx-border-width: 1; -fx-border-radius: 6;">
+                                <VBox fx:id="filesContainer" spacing="8"
+                                      style="-fx-padding: 15; -fx-background-color: #2b2b2b;">
+                                    <Label text="Click 'Refresh Folders' to scan for available files in your modpack directory."
+                                           style="-fx-text-fill: #bbbbbb; -fx-font-size: 12px; -fx-font-style: italic;"/>
+                                </VBox>
+                            </ScrollPane>
+                        </VBox>
+                    </HBox>
                 </HBox>
             </VBox>
 

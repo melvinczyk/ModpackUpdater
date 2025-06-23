@@ -10,7 +10,11 @@ import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -53,6 +57,15 @@ public class ModpackUpdater {
             local.setLastUpdated(entry.getTimestamp());
         }
 
+        if (server.getFolders() != null) {
+            local.setFolders(new ArrayList<>(server.getFolders()));
+        }
+        if (server.getFiles() != null) {
+            local.setFiles(new ArrayList<>(server.getFiles()));
+        }
+
+        syncRootFiles(local, server);
+
         List<ChangelogEntry> serverChangelogCopy = new ArrayList<>(server.getChangelog());
         Collections.reverse(serverChangelogCopy);
         local.setChangelog(serverChangelogCopy);
@@ -62,6 +75,108 @@ public class ModpackUpdater {
         System.out.println("Update complete. New version: " + local.getVersion());
     }
 
+    private static void syncRootFiles(ModpackInfo local, ModpackInfo server) {
+        if (server.getFiles() == null || server.getFiles().isEmpty()) {
+            System.out.println("No root files to sync");
+            return;
+        }
+
+        System.out.println("Syncing root files...");
+        File baseDir = new File(ConfigManager.getInstance().getConfig().getCurseforge_path(), local.getRoot());
+        String serverModpackRoot = server.getRoot();
+
+        for (String fileName : server.getFiles()) {
+            File localFile = new File(baseDir, fileName);
+
+            try {
+                boolean needsDownload = false;
+
+                if (!localFile.exists()) {
+                    System.out.println("Root file missing locally: " + fileName);
+                    needsDownload = true;
+                } else {
+                    String serverMd5 = getServerFileMD5(serverModpackRoot, fileName);
+                    if (serverMd5 != null) {
+                        String localMd5 = calculateMD5(localFile.toPath());
+                        if (!localMd5.equals(serverMd5)) {
+                            System.out.println("Root file outdated: " + fileName);
+                            needsDownload = true;
+                        }
+                    } else {
+                        System.out.println("Could not verify root file on server: " + fileName);
+                    }
+                }
+
+                if (needsDownload) {
+                    downloadFileFromS3(serverModpackRoot, fileName, localFile);
+                }
+
+            } catch (Exception e) {
+                System.err.println("Error syncing root file " + fileName + ": " + e.getMessage());
+            }
+        }
+
+        try {
+            Files.list(baseDir.toPath())
+                    .filter(Files::isRegularFile)
+                    .forEach(localFilePath -> {
+                        String fileName = localFilePath.getFileName().toString();
+
+                        if (fileName.equals("manifest.json")) {
+                            return;
+                        }
+
+                        if (!server.getFiles().contains(fileName)) {
+                            if (local.getFiles() != null && local.getFiles().contains(fileName)) {
+                                try {
+                                    Files.delete(localFilePath);
+                                    System.out.println("Removed obsolete root file: " + fileName);
+                                } catch (IOException e) {
+                                    System.err.println("Failed to delete obsolete root file " + fileName + ": " + e.getMessage());
+                                }
+                            }
+                        }
+                    });
+        } catch (IOException e) {
+            System.err.println("Error cleaning up root files: " + e.getMessage());
+        }
+    }
+
+    private static String getServerFileMD5(String serverModpackRoot, String fileName) {
+        String bucket = ConfigManager.getInstance().getConfig().getBucketName();
+        String key = serverModpackRoot + "/" + fileName;
+
+        try {
+            HeadObjectRequest headRequest = HeadObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(key)
+                    .build();
+
+            return B2ClientProvider.getClient().headObject(headRequest).eTag().replace("\"", "");
+        } catch (NoSuchKeyException e) {
+            System.out.println("Root file not found on server: " + fileName);
+            return null;
+        } catch (Exception e) {
+            System.err.println("Error getting server file MD5 for " + fileName + ": " + e.getMessage());
+            return null;
+        }
+    }
+
+    private static String calculateMD5(Path filePath) throws IOException {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("MD5");
+            byte[] fileBytes = Files.readAllBytes(filePath);
+            byte[] hashBytes = digest.digest(fileBytes);
+
+            StringBuilder sb = new StringBuilder();
+            for (byte b : hashBytes) {
+                sb.append(String.format("%02x", b));
+            }
+            return sb.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new IOException("MD5 algorithm not available", e);
+        }
+    }
 
     private static void saveUpdatedManifest(ModpackInfo modpackInfo) {
         try {
@@ -83,7 +198,6 @@ public class ModpackUpdater {
             e.printStackTrace();
         }
     }
-
 
     private static void handleOperation(ModpackInfo modpack, String serverModpackRoot, ChangeOperation op) {
         try {
