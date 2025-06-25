@@ -1,10 +1,10 @@
 {
-  "curseforge_path" : "/Users/nicholasburczyk/Documents/curseforge/minecraft/Instances",
+  "curseforge_path" : "",
   "modpack_path_overrides" : [ ],
   "endpoint" : "https://s3.us-east-005.backblazeb2.com",
   "autoUpdate" : false,
-  "keyID" : "005d09ffb61168e000000000c",
-  "appKey" : "K005xxa6qqzmklrsuYIoOdj/bHbb7Bs",
+  "keyID" : "",
+  "appKey" : "",
   "bucketName" : "GroidPack",
   "ignoredFiles" : [ ".DS_Store", ".bzEmpty" ]
 }
