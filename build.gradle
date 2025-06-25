@@ -4,7 +4,7 @@ plugins {
     id 'com.github.johnrengelman.shadow' version '8.1.1'
 }
 
-version = '1.1'
+version = '1.2.1'
 
 repositories {
     mavenCentral()
@@ -17,6 +17,9 @@ dependencies {
     implementation 'software.amazon.awssdk:s3:2.25.0'
     implementation 'org.slf4j:slf4j-simple:2.0.13'
     implementation 'org.json:json:20231013'
+
+    implementation "org.openjfx:javafx-controls:17.0.2"
+    implementation "org.openjfx:javafx-fxml:17.0.2"
 }
 
 javafx {
@@ -31,66 +34,55 @@ application {
 shadowJar {
     archiveBaseName = 'packupdater'
     archiveClassifier = ''
+    archiveVersion = version
     mergeServiceFiles()
+    manifest {
+        attributes 'Main-Class': application.mainClass
+    }
 }
 
 task createLaunchers {
     dependsOn shadowJar
     group = 'distribution'
-    description = 'Creates simple launcher scripts and platform-specific zip packages.'
+    description = 'Creates launcher scripts and packages for Windows and macOS.'
 
     doLast {
         def jarFile = shadowJar.archiveFile.get().asFile
         def launchersDir = file("${buildDir}/launchers")
         launchersDir.mkdirs()
 
-        // === MACOS PACKAGE ===
+        // === macOS ===
         def macDir = new File(launchersDir, "GroidPack Updater-MacOS")
         macDir.mkdirs()
-
-        def macCommand = new File(macDir, "(CLICK TO RUN) PackUpdater.command")
-        macCommand.text = """#!/bin/bash
-                        cd "\$(dirname "\$0")"
-                        java -jar ${jarFile.name}
-                        """
-        macCommand.setExecutable(true)
 
         copy {
             from jarFile
             into macDir
         }
+
+        copy {
+            from "javafx-mac"
+            into "${macDir}/javafx"
+        }
+
+        // .command launcher
+        def macCommand = new File(macDir, "(CLICK TO RUN) PackUpdater.command")
+        macCommand.text = """#!/bin/bash
+                    cd "\$(dirname "\$0")"
+                    java --module-path javafx/lib --add-modules javafx.controls,javafx.fxml -jar ${jarFile.name}
+                    """
+        macCommand.setExecutable(true)
 
         copy {
             from("src/main/resources/com/nicholasburczyk/packupdater/images/folder.icns")
             into macDir
         }
 
-        zipDir(macDir, new File(launchersDir, "GroidPack Updater-MacOS.zip"))
+        ant.zip(destfile: new File(launchersDir, "GroidPack Updater-MacOS.zip"), basedir: macDir)
 
-        // === WINDOWS PACKAGE ===
+        // === Windows ===
         def winDir = new File(launchersDir, "GroidPack Updater-Windows")
         winDir.mkdirs()
-
-        def winBat = new File(winDir, "(CLICK ME) PackUpdater.bat")
-        winBat.text = """@echo off
-                    cd /d "%~dp0"
-                    java -jar ${jarFile.name}
-                    pause
-                    """
-
-        def iconSetupBat = new File(winDir, "icon_setup.bat")
-        iconSetupBat.text = """@echo off
-                        attrib +r "../GroidPack Updater-Windows"
-                        attrib +h "../GroidPack Updater-Windows\\desktop.ini"
-                        ie4uinit.exe -show
-                        pause
-                        """
-
-        def desktopIni = new File(winDir, "desktop.ini")
-        desktopIni.text = """[.ShellClassInfo]
-                        IconResource=folder.ico,0
-                        InfoTip=Double-click to launch PackUpdater
-                        """
 
         copy {
             from jarFile
@@ -98,16 +90,37 @@ task createLaunchers {
         }
 
         copy {
+            from "javafx-win"
+            into "${winDir}/javafx"
+        }
+
+        // .bat launcher
+        def winBat = new File(winDir, "(CLICK ME) PackUpdater.bat")
+        winBat.text = """@echo off
+                    cd /d "%~dp0"
+                    java --module-path javafx\\lib --add-modules javafx.controls,javafx.fxml -jar ${jarFile.name}
+                    pause
+                    """
+
+        def iconSetupBat = new File(winDir, "icon_setup.bat")
+        iconSetupBat.text = """@echo off
+                    attrib +r "../GroidPack Updater-Windows"
+                    attrib +h "../GroidPack Updater-Windows\\desktop.ini"
+                    ie4uinit.exe -show
+                    pause
+                    """
+
+        def desktopIni = new File(winDir, "desktop.ini")
+        desktopIni.text = """[.ShellClassInfo]
+                    IconResource=folder.ico,0
+                    InfoTip=Double-click to launch PackUpdater
+                    """
+
+        copy {
             from("src/main/resources/com/nicholasburczyk/packupdater/images/folder.ico")
             into winDir
         }
 
-        zipDir(winDir, new File(launchersDir, "GroidPack Updater-Windows.zip"))
-
-        println "Platform-specific launchers created in: ${launchersDir}"
+        ant.zip(destfile: new File(launchersDir, "GroidPack Updater-Windows.zip"), basedir: winDir)
     }
-}
-
-void zipDir(File sourceDir, File zipFile) {
-    ant.zip(destfile: zipFile, basedir: sourceDir)
 }
