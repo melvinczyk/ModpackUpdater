@@ -19,7 +19,7 @@
 
     <VBox spacing="5" alignment="CENTER_LEFT">
         <Label text="Select what Modpack this is:" style="-fx-text-fill: #e0e0e0; -fx-font-size: 13px;" />
-        <ComboBox fx:id="serverModpackComboBox" prefWidth="300" />
+        <ComboBox fx:id="serverModpackComboBox" prefWidth="300" onAction="#onModpackSelected" />
     </VBox>
 
     <Region VBox.vgrow="ALWAYS" />

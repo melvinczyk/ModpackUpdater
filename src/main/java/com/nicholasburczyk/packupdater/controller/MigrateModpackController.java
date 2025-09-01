@@ -8,6 +8,7 @@ import com.nicholasburczyk.packupdater.server.B2ClientProvider;
 import com.nicholasburczyk.packupdater.server.ModpackRegistry;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
+import javafx.fxml.Initializable;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.TextField;
@@ -19,12 +20,13 @@ import software.amazon.awssdk.services.s3.model.*;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.stream.Collectors;
 
-public class MigrateModpackController {
+public class MigrateModpackController implements Initializable{
     @FXML
     private TextField pathTextField;
     @FXML
@@ -34,6 +36,29 @@ public class MigrateModpackController {
 
     private Stage dialogStage;
     private boolean confirmed = false;
+
+    @FXML
+    private void onModpackSelected(ActionEvent event) {
+        String selectedModpack = serverModpackComboBox.getSelectionModel().getSelectedItem();
+        if (selectedModpack != null && !selectedModpack.isEmpty()) {
+            showInfoAlert("Selected modpack: " + selectedModpack);
+        }
+    }
+
+    @Override
+    public void initialize(URL location, ResourceBundle resources) {
+        serverModpackComboBox.getSelectionModel().clearSelection();
+        serverModpackComboBox.setPromptText("Select a modpack...");
+    }
+
+    private void showInfoAlert(String message) {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.initOwner(dialogStage);
+        alert.setTitle("Modpack Selected");
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+        alert.showAndWait();
+    }
 
     @FXML
     private void browseFolder(ActionEvent event) {
