@@ -102,10 +102,13 @@ public class SoftwareUpdateManager {
     }
 
     private static String extractVersion(String jarName) {
-        Pattern pattern = Pattern.compile(Pattern.quote(JAR_PREFIX) + "(\\d+\\.\\d+)" + Pattern.quote(JAR_SUFFIX));
+        Pattern pattern = Pattern.compile(
+                Pattern.quote(JAR_PREFIX) + "(\\d+(?:\\.\\d+)+)" + Pattern.quote(JAR_SUFFIX)
+        );
         Matcher matcher = pattern.matcher(jarName);
         return matcher.find() ? matcher.group(1) : null;
     }
+
 
     private static void updateCommandScript(String oldJar, String newJar) {
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(Paths.get("."), "*.command")) {
