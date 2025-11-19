@@ -28,8 +28,8 @@ public class ModpackUpdater {
         String localVersion = local.getVersion();
         String serverModpackRoot = server.getRoot();
 
-        List<ChangelogEntry> serverChangelog = server.getChangelog();
-        serverChangelog.sort(Comparator.comparing(ChangelogEntry::getVersion));
+        List<ChangelogEntry> serverChangelog = new ArrayList<>(server.getChangelog());
+        serverChangelog.sort((a, b) -> compareVersions(a.getVersion(), b.getVersion()));
 
         boolean updating = false;
         List<ChangelogEntry> entriesToApply = new ArrayList<>();
@@ -67,13 +67,30 @@ public class ModpackUpdater {
         syncRootFiles(local, server);
 
         List<ChangelogEntry> serverChangelogCopy = new ArrayList<>(server.getChangelog());
-        Collections.reverse(serverChangelogCopy);
+        serverChangelogCopy.sort((a, b) -> compareVersions(b.getVersion(), a.getVersion()));
         local.setChangelog(serverChangelogCopy);
 
         saveUpdatedManifest(local);
 
         System.out.println("Update complete. New version: " + local.getVersion());
     }
+
+
+    private static int compareVersions(String v1, String v2) {
+        String[] a = v1.split("\\.");
+        String[] b = v2.split("\\.");
+
+        int len = Math.max(a.length, b.length);
+        for (int i = 0; i < len; i++) {
+            int ai = (i < a.length) ? Integer.parseInt(a[i]) : 0;
+            int bi = (i < b.length) ? Integer.parseInt(b[i]) : 0;
+            if (ai != bi) {
+                return Integer.compare(ai, bi);
+            }
+        }
+        return 0; // equal
+    }
+
 
     private static void syncRootFiles(ModpackInfo local, ModpackInfo server) {
         if (server.getFiles() == null || server.getFiles().isEmpty()) {
