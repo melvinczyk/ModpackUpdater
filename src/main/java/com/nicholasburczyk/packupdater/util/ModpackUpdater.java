@@ -21,7 +21,6 @@ import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,9 +38,10 @@ public class ModpackUpdater {
 
         String localVersion = local.getVersion();
 
-        List<ChangelogEntry> serverChangelog = server.getChangelog();
+        // Defensive copy so we don't mutate the shared server manifest's list.
         // Sort ascending by numeric version so version bookkeeping advances
         // oldest-first (string sorting would place "1.10" before "1.9").
+        List<ChangelogEntry> serverChangelog = new ArrayList<>(server.getChangelog());
         serverChangelog.sort((e1, e2) -> UpdateChecker.compareVersions(e1.getVersion(), e2.getVersion()));
 
         // Advance version/count/timestamp for every entry newer than the local
@@ -75,8 +75,10 @@ public class ModpackUpdater {
             local.setFiles(new ArrayList<>(server.getFiles()));
         }
 
+        // Store the changelog newest-first (descending), matching how the admin
+        // panel writes it.
         List<ChangelogEntry> serverChangelogCopy = new ArrayList<>(server.getChangelog());
-        Collections.reverse(serverChangelogCopy);
+        serverChangelogCopy.sort((a, b) -> UpdateChecker.compareVersions(b.getVersion(), a.getVersion()));
         local.setChangelog(serverChangelogCopy);
 
         saveUpdatedManifest(local);
