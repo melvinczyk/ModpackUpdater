@@ -16,6 +16,8 @@ import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.DirectoryChooser;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -25,11 +27,17 @@ import java.time.Instant;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 
 import java.nio.charset.StandardCharsets;
 
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.scene.Scene;
+import javafx.stage.Modality;
 import javafx.stage.Stage;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
@@ -44,6 +52,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class AdminController implements Initializable {
@@ -154,15 +163,464 @@ public class AdminController implements Initializable {
     @FXML
     private void uploadNewModpack(ActionEvent event) {
         DirectoryChooser directoryChooser = new DirectoryChooser();
-        directoryChooser.setTitle("Select Modpack Directory");
+        directoryChooser.setTitle("Select New Modpack Directory");
 
         Stage stage = (Stage) uploadNewModpackButton.getScene().getWindow();
         File selectedDirectory = directoryChooser.showDialog(stage);
 
         if (selectedDirectory != null) {
-            // TODO: Implement new modpack upload logic
-            showAlert("Upload new modpack functionality to be implemented.", Alert.AlertType.INFORMATION);
+            showNewModpackDialog(selectedDirectory);
         }
+    }
+
+    /**
+     * Dialog for registering a brand-new server modpack from an arbitrary folder.
+     * The admin picks which top-level folders and root files to track, confirms
+     * the metadata (pre-filled from minecraftinstance.json when present), and the
+     * pack is uploaded and registered without touching any existing modpack.
+     */
+    private void showNewModpackDialog(File folder) {
+        Stage dialog = new Stage();
+        dialog.initModality(Modality.APPLICATION_MODAL);
+        dialog.setTitle("Upload New Modpack");
+
+        InstanceMeta meta = readInstanceMetadata(folder);
+
+        TextField displayNameField = new TextField(meta.name);
+        TextField rootField = new TextField(sanitizeKey(meta.name.isBlank() ? folder.getName() : meta.name));
+        TextField mcField = new TextField(meta.minecraftVersion);
+        TextField loaderField = new TextField(meta.modLoader);
+        TextField loaderVersionField = new TextField(meta.modLoaderVersion);
+        TextField versionField = new TextField("1.0.0");
+
+        // Trackable top-level folders.
+        Set<String> selFolders = new HashSet<>();
+        VBox foldersBox = new VBox(4);
+        File[] dirs = folder.listFiles(File::isDirectory);
+        if (dirs != null) {
+            Arrays.sort(dirs, Comparator.comparing(File::getName));
+            for (File d : dirs) {
+                if (shouldSkipFolder(d.getName()) || isFolderEmpty(d)) continue;
+                CheckBox cb = new CheckBox(d.getName());
+                cb.setStyle("-fx-text-fill: #e0e0e0;");
+                cb.setOnAction(e -> {
+                    if (cb.isSelected()) selFolders.add(d.getName());
+                    else selFolders.remove(d.getName());
+                });
+                foldersBox.getChildren().add(cb);
+            }
+        }
+        if (foldersBox.getChildren().isEmpty()) {
+            foldersBox.getChildren().add(mutedLabel("(no trackable folders found)"));
+        }
+
+        // Trackable top-level files.
+        Set<String> selFiles = new HashSet<>();
+        VBox filesBox = new VBox(4);
+        File[] rootFiles = folder.listFiles(File::isFile);
+        if (rootFiles != null) {
+            Arrays.sort(rootFiles, Comparator.comparing(File::getName));
+            for (File f : rootFiles) {
+                if (shouldIgnoreFile(f.getName())) continue;
+                // Never let these be tracked: manifest.json is per-install app
+                // state (a client update would clobber its local copy), and
+                // minecraftinstance.json is client-specific CurseForge metadata.
+                if (f.getName().equals("manifest.json") || f.getName().equals("minecraftinstance.json")) continue;
+                CheckBox cb = new CheckBox(f.getName());
+                cb.setStyle("-fx-text-fill: #e0e0e0;");
+                cb.setOnAction(e -> {
+                    if (cb.isSelected()) selFiles.add(f.getName());
+                    else selFiles.remove(f.getName());
+                });
+                filesBox.getChildren().add(cb);
+            }
+        }
+        if (filesBox.getChildren().isEmpty()) {
+            filesBox.getChildren().add(mutedLabel("(no trackable root files found)"));
+        }
+
+        Label status = new Label();
+        status.setWrapText(true);
+        status.setStyle("-fx-text-fill: #cccccc; -fx-font-size: 12px;");
+        ProgressBar progress = new ProgressBar();
+        progress.setMaxWidth(Double.MAX_VALUE);
+        progress.setVisible(false);
+
+        Button create = new Button("Create & Upload");
+        Button cancel = new Button("Cancel");
+        cancel.setOnAction(e -> dialog.close());
+
+        create.setOnAction(e -> {
+            String displayName = displayNameField.getText().trim();
+            String root = sanitizeKey(rootField.getText());
+            String version = versionField.getText().trim();
+
+            if (displayName.isEmpty() || root.isEmpty() || version.isEmpty()) {
+                status.setText("Display name, root and version are required.");
+                return;
+            }
+            if (selFolders.isEmpty() && selFiles.isEmpty()) {
+                status.setText("Select at least one folder or file to track.");
+                return;
+            }
+
+            NewModpackSpec spec = new NewModpackSpec(
+                    folder, displayName, root, root,
+                    mcField.getText().trim(), loaderField.getText().trim(), loaderVersionField.getText().trim(),
+                    version, new ArrayList<>(selFolders), new ArrayList<>(selFiles));
+
+            create.setDisable(true);
+            cancel.setDisable(true);
+            progress.setVisible(true);
+
+            Task<Void> task = new Task<>() {
+                @Override
+                protected Void call() throws Exception {
+                    createAndUploadModpack(spec, this::updateMessage);
+                    return null;
+                }
+            };
+            status.textProperty().bind(task.messageProperty());
+
+            task.setOnSucceeded(ev -> {
+                status.textProperty().unbind();
+                progress.setVisible(false);
+                dialog.close();
+                showAlert("Modpack '" + displayName + "' uploaded and registered successfully.", Alert.AlertType.INFORMATION);
+                refreshServerModpacksAfterUpload();
+            });
+            task.setOnFailed(ev -> {
+                status.textProperty().unbind();
+                progress.setVisible(false);
+                create.setDisable(false);
+                cancel.setDisable(false);
+                Throwable ex = task.getException();
+                String msg = ex != null ? ex.getMessage() : "Unknown error";
+                status.setText("Failed: " + msg);
+                showAlert("Upload failed: " + msg + "\n\nExisting modpacks were not modified.", Alert.AlertType.ERROR);
+            });
+
+            new Thread(task).start();
+        });
+
+        HBox buttons = new HBox(10, create, cancel);
+        buttons.setAlignment(Pos.CENTER_RIGHT);
+
+        Label header = new Label("Upload New Modpack");
+        header.setStyle("-fx-text-fill: white; -fx-font-size: 16px; -fx-font-weight: bold;");
+        Label folderLbl = mutedLabel("Folder: " + folder.getAbsolutePath());
+        folderLbl.setWrapText(true);
+
+        VBox form = new VBox(6,
+                labeledField("Display name", displayNameField),
+                labeledField("Root / ID (S3 folder key)", rootField),
+                labeledField("Minecraft version", mcField),
+                labeledField("Mod loader", loaderField),
+                labeledField("Loader version", loaderVersionField),
+                labeledField("Initial version", versionField));
+
+        ScrollPane foldersScroll = new ScrollPane(foldersBox);
+        foldersScroll.setFitToWidth(true);
+        foldersScroll.setPrefHeight(140);
+        ScrollPane filesScroll = new ScrollPane(filesBox);
+        filesScroll.setFitToWidth(true);
+        filesScroll.setPrefHeight(100);
+
+        VBox content = new VBox(12,
+                header, folderLbl, form,
+                mutedLabel("Folders to track:"), foldersScroll,
+                mutedLabel("Root files to track:"), filesScroll,
+                progress, status, buttons);
+        content.setPadding(new Insets(16));
+        content.setStyle("-fx-background-color: #2b2b2b;");
+
+        Scene scene = new Scene(content);
+        dialog.setScene(scene);
+        dialog.setWidth(560);
+        dialog.setHeight(720);
+        dialog.showAndWait();
+    }
+
+    private Label mutedLabel(String text) {
+        Label label = new Label(text);
+        label.setStyle("-fx-text-fill: #cccccc; -fx-font-size: 12px;");
+        return label;
+    }
+
+    private VBox labeledField(String labelText, TextField field) {
+        Label label = new Label(labelText);
+        label.setStyle("-fx-text-fill: #cccccc; -fx-font-size: 12px;");
+        return new VBox(2, label, field);
+    }
+
+    private String sanitizeKey(String s) {
+        String k = s == null ? "" : s.trim();
+        while (k.startsWith("/")) k = k.substring(1);
+        while (k.endsWith("/")) k = k.substring(0, k.length() - 1);
+        return k;
+    }
+
+    /**
+     * Uploads the tracked files, writes the modpack's manifest, and finally
+     * registers it in modpacks.json. Ordering matters: files and manifest are
+     * written first, and modpacks.json (the shared index) is updated last with a
+     * read-modify-write so an existing pack is never dropped. Aborts before
+     * writing anything if the target root/display name collides with an existing
+     * modpack.
+     */
+    private void createAndUploadModpack(NewModpackSpec spec, Consumer<String> status) throws Exception {
+        S3Client client = B2ClientProvider.getClient();
+        String bucket = config.getBucketName();
+        ObjectMapper mapper = new ObjectMapper();
+
+        logServer("Creating new modpack '" + spec.displayName() + "' at root '" + spec.root()
+                + "' (bucket=" + bucket + ")");
+
+        // 1. Read the shared index, preserving whatever is already there.
+        status.accept("Reading modpacks.json...");
+        Map<String, String> modpacks;
+        try (ResponseInputStream<GetObjectResponse> in = client.getObject(GetObjectRequest.builder()
+                .bucket(bucket).key("modpacks.json").build())) {
+            modpacks = mapper.readValue(in, new TypeReference<LinkedHashMap<String, String>>() {});
+            logServer("GET modpacks.json -> " + modpacks.size() + " existing entries");
+        } catch (NoSuchKeyException e) {
+            modpacks = new LinkedHashMap<>();
+            logServer("GET modpacks.json -> not found, starting a new index");
+        }
+        Map<String, String> existingBefore = new LinkedHashMap<>(modpacks);
+
+        // 2. Collision checks — never overwrite an existing modpack.
+        if (modpacks.containsKey(spec.displayName())) {
+            throw new Exception("A modpack named '" + spec.displayName() + "' is already registered. Choose a different display name.");
+        }
+        if (modpacks.containsValue(spec.root()) || serverManifestExists(client, bucket, spec.root())) {
+            throw new Exception("A modpack already exists at root '" + spec.root() + "'. Choose a different root.");
+        }
+
+        // 3. Upload tracked files first, so the pack only becomes visible once its
+        // data actually exists on the server.
+        int uploaded = uploadModpackFiles(client, bucket, spec, status);
+
+        // 4. Write this modpack's own manifest.
+        status.accept("Writing manifest.json...");
+        String manifestJson = buildManifestJson(mapper, spec);
+        client.putObject(PutObjectRequest.builder()
+                .bucket(bucket).key(spec.root() + "/manifest.json").contentType("application/json").build(),
+                RequestBody.fromString(manifestJson));
+        logServer("PUT " + spec.root() + "/manifest.json (" + manifestJson.length() + " bytes)");
+
+        // 5. Register in the shared index last (read-modify-write).
+        status.accept("Updating modpacks.json...");
+        modpacks.put(spec.displayName(), spec.root());
+        String modpacksJson = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(modpacks);
+        client.putObject(PutObjectRequest.builder()
+                .bucket(bucket).key("modpacks.json").contentType("application/json").build(),
+                RequestBody.fromString(modpacksJson));
+        logServer("PUT modpacks.json (" + modpacks.size() + " entries, added '" + spec.displayName() + "')");
+
+        // 6. Read both JSONs back and confirm nothing was lost or corrupted.
+        status.accept("Verifying server state...");
+        verifyUpload(client, bucket, mapper, spec, existingBefore);
+
+        logServer("New modpack '" + spec.displayName() + "' registered successfully (" + uploaded + " files)");
+        status.accept("Done — uploaded " + uploaded + " file(s).");
+    }
+
+    private int uploadModpackFiles(S3Client client, String bucket, NewModpackSpec spec, Consumer<String> status) throws IOException {
+        Path base = spec.folder().toPath();
+        int uploaded = 0;
+
+        for (String folder : spec.folders()) {
+            File folderPath = new File(spec.folder(), folder);
+            if (!folderPath.exists() || !folderPath.isDirectory()) continue;
+
+            status.accept("Uploading folder: " + folder);
+            List<Path> paths;
+            try (var walk = Files.walk(folderPath.toPath())) {
+                paths = walk.filter(Files::isRegularFile)
+                        .filter(p -> !shouldIgnoreFile(p.getFileName().toString()))
+                        .collect(Collectors.toList());
+            }
+            for (Path p : paths) {
+                String rel = base.relativize(p).toString().replace("\\", "/");
+                String key = spec.root() + "/" + rel;
+                client.putObject(PutObjectRequest.builder().bucket(bucket).key(key).build(),
+                        RequestBody.fromFile(p));
+                logServer("PUT " + key + " (" + p.toFile().length() + " bytes)");
+                uploaded++;
+            }
+        }
+
+        for (String file : spec.files()) {
+            File f = new File(spec.folder(), file);
+            if (f.exists() && f.isFile() && !shouldIgnoreFile(f.getName())) {
+                status.accept("Uploading file: " + file);
+                String key = spec.root() + "/" + file;
+                client.putObject(PutObjectRequest.builder().bucket(bucket).key(key).build(),
+                        RequestBody.fromFile(f));
+                logServer("PUT " + key + " (" + f.length() + " bytes)");
+                uploaded++;
+            }
+        }
+
+        logServer("Uploaded " + uploaded + " file(s) under root '" + spec.root() + "'");
+        return uploaded;
+    }
+
+    private String buildManifestJson(ObjectMapper mapper, NewModpackSpec spec) throws Exception {
+        ObjectNode m = mapper.createObjectNode();
+        m.put("modpackId", spec.modpackId());
+        m.put("displayName", spec.displayName());
+        m.put("author", "Admin");
+        m.put("description", "");
+        m.put("version", spec.version());
+        m.put("minecraftVersion", spec.minecraftVersion());
+        m.put("modLoader", spec.modLoader());
+        m.put("modLoaderVersion", spec.modLoaderVersion());
+
+        String now = Instant.now().toString();
+        m.put("created", now);
+        m.put("lastUpdated", now);
+
+        ArrayNode foldersArr = mapper.createArrayNode();
+        for (String f : spec.folders()) foldersArr.add(f);
+        m.set("folders", foldersArr);
+
+        ArrayNode filesArr = mapper.createArrayNode();
+        for (String f : spec.files()) filesArr.add(f);
+        m.set("files", filesArr);
+
+        ArrayNode changelog = mapper.createArrayNode();
+        ObjectNode entry = mapper.createObjectNode();
+        entry.put("version", spec.version());
+        entry.put("timestamp", now);
+        entry.put("message", "Initial modpack upload");
+        entry.set("operations", mapper.createArrayNode());
+        changelog.add(entry);
+        m.set("changelog", changelog);
+
+        return mapper.writerWithDefaultPrettyPrinter().writeValueAsString(m);
+    }
+
+    private boolean serverManifestExists(S3Client client, String bucket, String root) {
+        try {
+            client.headObject(HeadObjectRequest.builder().bucket(bucket).key(root + "/manifest.json").build());
+            logServer("HEAD " + root + "/manifest.json -> exists");
+            return true;
+        } catch (NoSuchKeyException e) {
+            logServer("HEAD " + root + "/manifest.json -> not found");
+            return false;
+        }
+    }
+
+    private void verifyUpload(S3Client client, String bucket, ObjectMapper mapper,
+                              NewModpackSpec spec, Map<String, String> existingBefore) throws Exception {
+        // modpacks.json must read back with the new entry AND every prior entry intact.
+        Map<String, String> after;
+        try (ResponseInputStream<GetObjectResponse> in = client.getObject(GetObjectRequest.builder()
+                .bucket(bucket).key("modpacks.json").build())) {
+            after = mapper.readValue(in, new TypeReference<LinkedHashMap<String, String>>() {});
+        }
+        logServer("GET modpacks.json (verify) -> " + after.size() + " entries");
+
+        if (!spec.root().equals(after.get(spec.displayName()))) {
+            throw new Exception("Verification failed: modpacks.json is missing the new entry after upload.");
+        }
+        for (Map.Entry<String, String> prior : existingBefore.entrySet()) {
+            if (!prior.getValue().equals(after.get(prior.getKey()))) {
+                throw new Exception("Verification failed: existing entry '" + prior.getKey()
+                        + "' was altered or lost in modpacks.json.");
+            }
+        }
+
+        // The new manifest must read back as valid JSON with the expected id.
+        try (ResponseInputStream<GetObjectResponse> in = client.getObject(GetObjectRequest.builder()
+                .bucket(bucket).key(spec.root() + "/manifest.json").build())) {
+            JsonNode manifest = mapper.readTree(in);
+            if (!spec.modpackId().equals(manifest.path("modpackId").asText(null))) {
+                throw new Exception("Verification failed: uploaded manifest.json did not read back correctly.");
+            }
+        }
+        logServer("GET " + spec.root() + "/manifest.json (verify) -> ok; all "
+                + existingBefore.size() + " prior entries intact");
+    }
+
+    private void refreshServerModpacksAfterUpload() {
+        Task<Void> refresh = new Task<>() {
+            @Override
+            protected Void call() {
+                B2ClientProvider.fetchAndStoreModpackInfo(config.getBucketName());
+                return null;
+            }
+        };
+        refresh.setOnSucceeded(e -> Platform.runLater(this::loadModpackSelectors));
+        new Thread(refresh).start();
+    }
+
+    private InstanceMeta readInstanceMetadata(File folder) {
+        InstanceMeta meta = new InstanceMeta();
+        meta.name = folder.getName();
+
+        File instanceFile = new File(folder, "minecraftinstance.json");
+        if (!instanceFile.exists()) {
+            return meta;
+        }
+
+        try {
+            JsonNode root = new ObjectMapper().readTree(instanceFile);
+            if (root.hasNonNull("name")) {
+                meta.name = root.get("name").asText();
+            }
+
+            JsonNode bml = root.path("baseModLoader");
+            String mc = bml.path("minecraftVersion").asText(root.path("gameVersion").asText(""));
+            if (!mc.isBlank()) {
+                meta.minecraftVersion = mc;
+            }
+
+            String bmlName = bml.path("name").asText("");        // e.g. "forge-47.3.22"
+            String loaderVersion = bml.path("forgeVersion").asText("");
+            if (!bmlName.isBlank() && bmlName.contains("-")) {
+                int dash = bmlName.indexOf('-');
+                meta.modLoader = capitalizeLoader(bmlName.substring(0, dash));
+                if (loaderVersion.isBlank()) {
+                    loaderVersion = bmlName.substring(dash + 1);
+                }
+            }
+            if (!loaderVersion.isBlank()) {
+                meta.modLoaderVersion = loaderVersion;
+            }
+        } catch (Exception e) {
+            System.err.println("Could not parse minecraftinstance.json: " + e.getMessage());
+        }
+        return meta;
+    }
+
+    private String capitalizeLoader(String loaderId) {
+        return switch (loaderId.toLowerCase()) {
+            case "forge" -> "Forge";
+            case "neoforge" -> "NeoForge";
+            case "fabric" -> "Fabric";
+            case "quilt" -> "Quilt";
+            default -> loaderId.isEmpty() ? loaderId
+                    : Character.toUpperCase(loaderId.charAt(0)) + loaderId.substring(1);
+        };
+    }
+
+    private static class InstanceMeta {
+        String name = "";
+        String minecraftVersion = "1.20.1";
+        String modLoader = "Forge";
+        String modLoaderVersion = "";
+    }
+
+    private record NewModpackSpec(File folder, String displayName, String root, String modpackId,
+                                  String minecraftVersion, String modLoader, String modLoaderVersion,
+                                  String version, List<String> folders, List<String> files) {}
+
+    /** Logs a server (S3) interaction to stdout with a consistent prefix. */
+    private static void logServer(String message) {
+        System.out.println("[Server] " + message);
     }
 
     @FXML
@@ -568,6 +1026,9 @@ public class AdminController implements Initializable {
         String bucketName = config.getBucketName();
         File localModpackPath = new File(config.getCurseforge_path(), localModpack.getRoot());
 
+        logServer("Uploading version " + newVersion + " for '" + serverModpack.getRoot() + "': "
+                + stagedChanges.size() + " staged change(s)");
+
         List<String> operations = new ArrayList<>();
 
         for (FileChange change : stagedChanges) {
@@ -584,12 +1045,16 @@ public class AdminController implements Initializable {
                                 .build();
 
                         client.putObject(putRequest, RequestBody.fromFile(localFile));
+                        logServer("PUT " + serverPath + " (" + change.getType() + ", " + localFile.length() + " bytes)");
                         operations.add((change.getType() == FileChangeType.ADDED ? "Added: " : "Modified: ") + change.getPath());
+                    } else {
+                        logServer("SKIP " + serverPath + " (" + change.getType() + ") - local file missing");
                     }
                     break;
 
                 case DELETED:
                     client.deleteObject(b -> b.bucket(bucketName).key(serverPath));
+                    logServer("DELETE " + serverPath);
                     operations.add("Deleted: " + change.getPath());
                     break;
             }
@@ -614,7 +1079,9 @@ public class AdminController implements Initializable {
 
             currentManifest = new String(response.readAllBytes(), StandardCharsets.UTF_8);
             response.close();
+            logServer("GET " + manifestPath + " (" + currentManifest.length() + " bytes)");
         } catch (Exception e) {
+            logServer("GET " + manifestPath + " failed (" + e.getMessage() + "), creating a fresh manifest");
             currentManifest = createBasicManifest(serverModpack);
         }
 
@@ -680,6 +1147,7 @@ public class AdminController implements Initializable {
                 .build();
 
         client.putObject(manifestRequest, RequestBody.fromString(updatedManifest));
+        logServer("PUT " + manifestPath + " (version " + newVersion + ", " + updatedManifest.length() + " bytes)");
     }
 
     private void updateLocalManifest(ModpackInfo localModpack, File localModpackPath, String newVersion,
@@ -915,6 +1383,7 @@ public class AdminController implements Initializable {
                             .prefix(filePath)
                             .build();
 
+                    logServer("LIST " + filePath);
                     for (S3Object object : client.listObjectsV2Paginator(request).contents()) {
                         String key = object.key();
                         if (key.equals(filePath)) {
@@ -941,6 +1410,7 @@ public class AdminController implements Initializable {
                     // Paginate so folders with more than 1000 objects are listed
                     // completely; otherwise the diff would be computed against a
                     // partial view of the server.
+                    int before = serverFiles.size();
                     for (S3Object object : client.listObjectsV2Paginator(request).contents()) {
                         String key = object.key();
 
@@ -950,6 +1420,7 @@ public class AdminController implements Initializable {
                             serverFiles.put(key, new FileInfo(md5Hash, object.size()));
                         }
                     }
+                    logServer("LIST " + prefix + " -> " + (serverFiles.size() - before) + " object(s)");
                 } catch (Exception e) {
                     System.err.println("Error fetching server file info for folder: " + target + ", " + e.getMessage());
                 }
