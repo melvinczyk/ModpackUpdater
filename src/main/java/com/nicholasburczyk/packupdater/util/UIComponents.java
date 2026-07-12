@@ -1,6 +1,8 @@
 package com.nicholasburczyk.packupdater.util;
 
 import com.nicholasburczyk.packupdater.config.ConfigManager;
+import com.nicholasburczyk.packupdater.model.ChangeOperation;
+import com.nicholasburczyk.packupdater.model.ChangelogEntry;
 import com.nicholasburczyk.packupdater.model.ModpackInfo;
 import com.nicholasburczyk.packupdater.server.ModpackRegistry;
 import javafx.application.Platform;
@@ -11,7 +13,6 @@ import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
-import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -22,11 +23,13 @@ import javafx.stage.Stage;
 import java.awt.*;
 import java.io.File;
 import java.io.IOException;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
 
 public class UIComponents {
 
-    public static HBox createModpackEntry(ModpackInfo modpack, Image image, boolean isLocal) {
-        ImageView imageView = new ImageView(image);
+    public static HBox createModpackEntry(ModpackInfo modpack, ImageView imageView, boolean isLocal) {
         imageView.setFitHeight(64);
         imageView.setFitWidth(64);
         imageView.setStyle("-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 3, 0, 0, 1);");
@@ -105,7 +108,7 @@ public class UIComponents {
                     -fx-font-size: 12px;
                 """);
 
-        changelogButton.setOnAction(e -> showChangelogDialog(modpack.getDisplayName(), modpack.getRoot()));
+        changelogButton.setOnAction(e -> showChangelogDialog(modpack));
         buttonContainer.getChildren().add(changelogButton);
 
         HBox card = new HBox(12);
@@ -122,10 +125,10 @@ public class UIComponents {
         return card;
     }
 
-    private static void showChangelogDialog(String modpackTitle, String modpackRoot) {
+    private static void showChangelogDialog(ModpackInfo modpack) {
         Stage dialogStage = new Stage();
         dialogStage.initModality(Modality.APPLICATION_MODAL);
-        dialogStage.setTitle("Changelog - " + modpackTitle);
+        dialogStage.setTitle("Changelog - " + modpack.getDisplayName());
         dialogStage.setWidth(600);
         dialogStage.setHeight(500);
 
@@ -133,25 +136,23 @@ public class UIComponents {
         dialogContent.setPadding(new Insets(20));
         dialogContent.setStyle("-fx-background-color: #2b2b2b;");
 
-        Label titleLabel = new Label("Changelog for " + modpackTitle);
+        Label titleLabel = new Label("Changelog for " + modpack.getDisplayName());
         titleLabel.setStyle("-fx-text-fill: white; -fx-font-size: 18px; -fx-font-weight: bold;");
 
         VBox changelogContent = new VBox(15);
         changelogContent.setStyle("-fx-background-color: #3c3c3c; -fx-background-radius: 8;");
         changelogContent.setPadding(new Insets(15));
 
-        String changelogText = ChangelogHelper.getChangelogForModpack(modpackRoot);
+        // Render straight from the changelog already loaded into the manifest.
+        // Fetching it from S3 by root broke for local packs, whose root is a
+        // local folder name that isn't a valid server key.
+        List<ChangelogEntry> changelog = modpack.getChangelog();
 
-        if (changelogText != null && !changelogText.trim().isEmpty()) {
-            String[] versions = changelogText.split("(?=Version \\d+\\.\\d+(?:\\.\\d+)?)");
-
-            for (int i = 0; i < versions.length; i++) {
-                String versionBlock = versions[i];
-                if (versionBlock.trim().isEmpty()) continue;
-
-                boolean isLatest = (i == 0);
-                VBox versionBox = createVersionBlock(versionBlock.trim(), isLatest);
-                changelogContent.getChildren().add(versionBox);
+        if (changelog != null && !changelog.isEmpty()) {
+            boolean isLatest = true;
+            for (ChangelogEntry entry : changelog) {
+                changelogContent.getChildren().add(createVersionBlock(entry, isLatest));
+                isLatest = false;
             }
         } else {
             Label noChangelogLabel = new Label("No changelog available for this modpack.");
@@ -185,31 +186,59 @@ public class UIComponents {
         dialogStage.showAndWait();
     }
 
-    private static VBox createVersionBlock(String versionText, boolean isLatest) {
+    private static VBox createVersionBlock(ChangelogEntry entry, boolean isLatest) {
         VBox versionBox = new VBox(8);
         versionBox.setStyle("-fx-background-color: #4a4a4a; -fx-background-radius: 6; -fx-padding: 12;");
 
-        String[] lines = versionText.split("\n");
-        boolean isFirstLine = true;
+        String color = isLatest ? "#4CAF50" : "#FFA500";
+        String version = entry.getVersion() != null ? entry.getVersion() : "Unknown";
+        Label versionLabel = new Label("Version: " + version);
+        versionLabel.setStyle("-fx-text-fill: " + color + "; -fx-font-size: 16px; -fx-font-weight: bold;");
+        versionLabel.setWrapText(true);
+        versionBox.getChildren().add(versionLabel);
 
-        for (String line : lines) {
-            line = line.trim();
-            if (line.isEmpty()) continue;
-
-            Label lineLabel = new Label(line);
-
-            if (isFirstLine && line.toLowerCase().contains("version:")) {
-                String color = isLatest ? "#4CAF50" : "#FFA500";
-                lineLabel.setStyle("-fx-text-fill: " + color + "; -fx-font-size: 16px; -fx-font-weight: bold;");
-                isFirstLine = false;
-            } else if (line.startsWith("- ") || line.startsWith("* ")) {
-                lineLabel.setStyle("-fx-text-fill: #e0e0e0; -fx-font-size: 13px;");
-            } else {
-                lineLabel.setStyle("-fx-text-fill: #cccccc; -fx-font-size: 13px;");
+        String timestamp = entry.getTimestamp();
+        if (timestamp != null && !timestamp.isEmpty()) {
+            String formattedDate = timestamp;
+            try {
+                ZonedDateTime dateTime = ZonedDateTime.parse(timestamp);
+                formattedDate = dateTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss z"));
+            } catch (Exception ignored) {
+                // fall back to the raw timestamp
             }
-            lineLabel.setWrapText(true);
-            versionBox.getChildren().add(lineLabel);
+            versionBox.getChildren().add(infoLabel("Date: " + formattedDate));
         }
+
+        String message = entry.getMessage();
+        if (message != null && !message.isEmpty()) {
+            versionBox.getChildren().add(infoLabel("Changes: " + message));
+        }
+
+        List<ChangeOperation> operations = entry.getOperations();
+        if (operations != null && !operations.isEmpty()) {
+            versionBox.getChildren().add(infoLabel("Operations:"));
+            for (ChangeOperation op : operations) {
+                StringBuilder line = new StringBuilder("  - ").append(op.getType());
+                if ("Moved".equals(op.getType()) && op.getOldPath() != null) {
+                    line.append(": ").append(op.getOldPath()).append(" -> ").append(op.getNewPath());
+                } else if (op.getPath() != null && !op.getPath().isEmpty()) {
+                    line.append(": ").append(op.getPath());
+                }
+
+                Label opLabel = new Label(line.toString());
+                opLabel.setStyle("-fx-text-fill: #e0e0e0; -fx-font-size: 13px;");
+                opLabel.setWrapText(true);
+                versionBox.getChildren().add(opLabel);
+            }
+        }
+
         return versionBox;
+    }
+
+    private static Label infoLabel(String text) {
+        Label label = new Label(text);
+        label.setStyle("-fx-text-fill: #cccccc; -fx-font-size: 13px;");
+        label.setWrapText(true);
+        return label;
     }
 }

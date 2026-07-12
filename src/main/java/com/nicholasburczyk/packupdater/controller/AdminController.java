@@ -33,7 +33,6 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import javafx.stage.Stage;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
-import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.S3Object;
 
 import java.io.File;
@@ -916,9 +915,7 @@ public class AdminController implements Initializable {
                             .prefix(filePath)
                             .build();
 
-                    ListObjectsV2Response response = client.listObjectsV2(request);
-
-                    for (S3Object object : response.contents()) {
+                    for (S3Object object : client.listObjectsV2Paginator(request).contents()) {
                         String key = object.key();
                         if (key.equals(filePath)) {
                             String fileName = key.substring(key.lastIndexOf('/') + 1);
@@ -941,9 +938,10 @@ public class AdminController implements Initializable {
                             .prefix(prefix)
                             .build();
 
-                    ListObjectsV2Response response = client.listObjectsV2(request);
-
-                    for (S3Object object : response.contents()) {
+                    // Paginate so folders with more than 1000 objects are listed
+                    // completely; otherwise the diff would be computed against a
+                    // partial view of the server.
+                    for (S3Object object : client.listObjectsV2Paginator(request).contents()) {
                         String key = object.key();
 
                         String fileName = key.substring(key.lastIndexOf('/') + 1);
@@ -1112,9 +1110,16 @@ public class AdminController implements Initializable {
     private String calculateMD5(Path filePath) throws IOException {
         try {
             MessageDigest digest = MessageDigest.getInstance("MD5");
-            byte[] fileBytes = Files.readAllBytes(filePath);
-            byte[] hashBytes = digest.digest(fileBytes);
+            try (java.io.InputStream is = Files.newInputStream(filePath);
+                 java.security.DigestInputStream dis =
+                         new java.security.DigestInputStream(new java.io.BufferedInputStream(is, 1 << 16), digest)) {
+                byte[] buffer = new byte[1 << 16];
+                while (dis.read(buffer) != -1) {
+                    // read() feeds the digest as a side effect
+                }
+            }
 
+            byte[] hashBytes = digest.digest();
             StringBuilder sb = new StringBuilder();
             for (byte b : hashBytes) {
                 sb.append(String.format("%02x", b));

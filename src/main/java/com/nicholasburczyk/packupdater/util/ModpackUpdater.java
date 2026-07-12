@@ -5,57 +5,68 @@ import com.nicholasburczyk.packupdater.config.ConfigManager;
 import com.nicholasburczyk.packupdater.server.B2ClientProvider;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
+import software.amazon.awssdk.services.s3.model.S3Object;
 
+import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 public class ModpackUpdater {
+
+    /** A server object's identity: its etag (== MD5 for the single-part uploads this app does) and size. */
+    private record ServerObject(String etag, long size) {}
 
     public static void applyUpdates(ModpackInfo local, ModpackInfo server) {
         System.out.println("Applying updates for modpack: " + local.getModpackId());
 
         String localVersion = local.getVersion();
-        String serverModpackRoot = server.getRoot();
 
         List<ChangelogEntry> serverChangelog = server.getChangelog();
-        serverChangelog.sort(Comparator.comparing(ChangelogEntry::getVersion));
+        // Sort ascending by numeric version so version bookkeeping advances
+        // oldest-first (string sorting would place "1.10" before "1.9").
+        serverChangelog.sort((e1, e2) -> UpdateChecker.compareVersions(e1.getVersion(), e2.getVersion()));
 
-        boolean updating = false;
-        List<ChangelogEntry> entriesToApply = new ArrayList<>();
-
+        // Advance version/count/timestamp for every entry newer than the local
+        // version. The actual file changes are applied by the folder/root-file
+        // mirror below, which reconciles against the server directly, so we no
+        // longer replay each changelog operation (that was redundant work).
         for (ChangelogEntry entry : serverChangelog) {
             String version = entry.getVersion();
+            if (!UpdateChecker.isVersionGreater(version, localVersion)) continue;
 
-            if (version.equals(localVersion)) {
-                updating = true;
-                continue;
-            }
-
-            if (!updating) continue;
-
-            System.out.println("Applying changelog entry: " + version);
-
-            for (ChangeOperation op : entry.getOperations()) {
-                handleOperation(local, serverModpackRoot, op);
-            }
-
-            entriesToApply.add(entry);
-
+            System.out.println("Recording changelog entry: " + version);
             local.setVersion(version);
             local.setUpdateCount(local.getUpdateCount() + 1);
             local.setLastUpdated(entry.getTimestamp());
         }
+
+        // Sync root files before overwriting the local file/folder lists so the
+        // cleanup step can compare the server list against the previously
+        // tracked local list to find obsolete files.
+        syncRootFiles(local, server);
+
+        // Fully reconcile every tracked folder against the server so the local
+        // pack is an exact mirror, regardless of whether the changelog captured
+        // every change. This mirrors the migrate flow's behaviour.
+        syncTrackedFolders(local, server);
 
         if (server.getFolders() != null) {
             local.setFolders(new ArrayList<>(server.getFolders()));
@@ -63,8 +74,6 @@ public class ModpackUpdater {
         if (server.getFiles() != null) {
             local.setFiles(new ArrayList<>(server.getFiles()));
         }
-
-        syncRootFiles(local, server);
 
         List<ChangelogEntry> serverChangelogCopy = new ArrayList<>(server.getChangelog());
         Collections.reverse(serverChangelogCopy);
@@ -95,12 +104,19 @@ public class ModpackUpdater {
                     System.out.println("Root file missing locally: " + fileName);
                     needsDownload = true;
                 } else {
-                    String serverMd5 = getServerFileMD5(serverModpackRoot, fileName);
-                    if (serverMd5 != null) {
-                        String localMd5 = calculateMD5(localFile.toPath());
-                        if (!localMd5.equals(serverMd5)) {
-                            System.out.println("Root file outdated: " + fileName);
+                    HeadObjectResponse head = getServerHead(serverModpackRoot, fileName);
+                    if (head != null) {
+                        // Cheap size check first; only hash when sizes match.
+                        if (localFile.length() != head.contentLength()) {
+                            System.out.println("Root file outdated (size): " + fileName);
                             needsDownload = true;
+                        } else {
+                            String serverMd5 = head.eTag().replace("\"", "");
+                            String localMd5 = calculateMD5(localFile.toPath());
+                            if (!localMd5.equalsIgnoreCase(serverMd5)) {
+                                System.out.println("Root file outdated: " + fileName);
+                                needsDownload = true;
+                            }
                         }
                     } else {
                         System.out.println("Could not verify root file on server: " + fileName);
@@ -116,8 +132,8 @@ public class ModpackUpdater {
             }
         }
 
-        try {
-            Files.list(baseDir.toPath())
+        try (var localFiles = Files.list(baseDir.toPath())) {
+            localFiles
                     .filter(Files::isRegularFile)
                     .forEach(localFilePath -> {
                         String fileName = localFilePath.getFileName().toString();
@@ -142,7 +158,128 @@ public class ModpackUpdater {
         }
     }
 
-    private static String getServerFileMD5(String serverModpackRoot, String fileName) {
+    /**
+     * Reconciles every tracked folder so the local pack exactly mirrors the
+     * server: downloads files that are missing or changed and deletes any local
+     * file under a tracked folder that no longer exists on the server.
+     *
+     * If the server listing for a folder fails, that folder is skipped entirely
+     * (no deletions) so a transient error can never wipe out local files.
+     */
+    private static void syncTrackedFolders(ModpackInfo local, ModpackInfo server) {
+        List<String> folders = server.getFolders();
+        if (folders == null || folders.isEmpty()) {
+            System.out.println("No tracked folders to sync");
+            return;
+        }
+
+        String bucket = ConfigManager.getInstance().getConfig().getBucketName();
+        String serverModpackRoot = server.getRoot();
+        File baseDir = new File(ConfigManager.getInstance().getConfig().getCurseforge_path(), local.getRoot());
+
+        int threads = Math.min(8, Math.max(2, Runtime.getRuntime().availableProcessors()));
+        ExecutorService pool = Executors.newFixedThreadPool(threads);
+        try {
+            for (String folder : folders) {
+                System.out.println("Syncing tracked folder: " + folder);
+                String prefix = serverModpackRoot + "/" + folder + "/";
+
+                // 1. Collect every object the server has under this folder. Keys are
+                // stored relative to the modpack root (e.g. "mods/foo.jar") so they
+                // line up with local relative paths. Uses the paginator so folders
+                // with more than 1000 objects are listed completely — a truncated
+                // listing here would make valid files look local-only and be deleted.
+                Map<String, ServerObject> serverFiles = new HashMap<>();
+                boolean listingComplete = true;
+                try {
+                    ListObjectsV2Request request = ListObjectsV2Request.builder()
+                            .bucket(bucket)
+                            .prefix(prefix)
+                            .build();
+
+                    for (S3Object obj : B2ClientProvider.getClient().listObjectsV2Paginator(request).contents()) {
+                        String key = obj.key();
+                        if (key.endsWith("/")) continue; // skip folder placeholder keys
+                        String relativePath = key.substring(serverModpackRoot.length() + 1);
+                        serverFiles.put(relativePath, new ServerObject(obj.eTag().replace("\"", ""), obj.size()));
+                    }
+                } catch (Exception e) {
+                    listingComplete = false;
+                    System.err.println("Failed to list server folder '" + folder + "', skipping to avoid data loss: " + e.getMessage());
+                }
+
+                if (!listingComplete) {
+                    continue;
+                }
+
+                // 2. Download anything missing or changed, in parallel.
+                List<Future<?>> futures = new ArrayList<>();
+                for (Map.Entry<String, ServerObject> entry : serverFiles.entrySet()) {
+                    String relativePath = entry.getKey();
+                    ServerObject serverObj = entry.getValue();
+
+                    if (relativePath.endsWith(".bzEmpty")) continue; // Backblaze empty-folder marker
+
+                    futures.add(pool.submit(() -> {
+                        File localFile = new File(baseDir, relativePath);
+                        try {
+                            boolean needsDownload = false;
+                            if (!localFile.exists()) {
+                                needsDownload = true;
+                            } else if (localFile.length() != serverObj.size()) {
+                                // Cheap size check avoids hashing when it can't match.
+                                needsDownload = true;
+                            } else {
+                                String localMd5 = calculateMD5(localFile.toPath());
+                                if (!localMd5.equalsIgnoreCase(serverObj.etag())) {
+                                    needsDownload = true;
+                                }
+                            }
+                            if (needsDownload) {
+                                downloadFileFromS3(serverModpackRoot, relativePath, localFile);
+                            }
+                        } catch (Exception e) {
+                            System.err.println("Error syncing " + relativePath + ": " + e.getMessage());
+                        }
+                    }));
+                }
+                for (Future<?> f : futures) {
+                    try {
+                        f.get();
+                    } catch (Exception e) {
+                        System.err.println("Download task failed: " + e.getMessage());
+                    }
+                }
+
+                // 3. Delete local files under this folder that are not on the server.
+                File folderDir = new File(baseDir, folder);
+                if (folderDir.exists() && folderDir.isDirectory()) {
+                    try (var localWalk = Files.walk(folderDir.toPath())) {
+                        localWalk
+                                .filter(Files::isRegularFile)
+                                .forEach(localFilePath -> {
+                                    String relativePath = baseDir.toPath().relativize(localFilePath)
+                                            .toString().replace("\\", "/");
+                                    if (!serverFiles.containsKey(relativePath)) {
+                                        try {
+                                            Files.delete(localFilePath);
+                                            System.out.println("Removed local-only file: " + relativePath);
+                                        } catch (IOException e) {
+                                            System.err.println("Failed to delete local-only file " + relativePath + ": " + e.getMessage());
+                                        }
+                                    }
+                                });
+                    } catch (IOException e) {
+                        System.err.println("Error scanning local folder '" + folder + "': " + e.getMessage());
+                    }
+                }
+            }
+        } finally {
+            pool.shutdown();
+        }
+    }
+
+    private static HeadObjectResponse getServerHead(String serverModpackRoot, String fileName) {
         String bucket = ConfigManager.getInstance().getConfig().getBucketName();
         String key = serverModpackRoot + "/" + fileName;
 
@@ -152,12 +289,12 @@ public class ModpackUpdater {
                     .key(key)
                     .build();
 
-            return B2ClientProvider.getClient().headObject(headRequest).eTag().replace("\"", "");
+            return B2ClientProvider.getClient().headObject(headRequest);
         } catch (NoSuchKeyException e) {
             System.out.println("Root file not found on server: " + fileName);
             return null;
         } catch (Exception e) {
-            System.err.println("Error getting server file MD5 for " + fileName + ": " + e.getMessage());
+            System.err.println("Error getting server file metadata for " + fileName + ": " + e.getMessage());
             return null;
         }
     }
@@ -165,9 +302,17 @@ public class ModpackUpdater {
     private static String calculateMD5(Path filePath) throws IOException {
         try {
             MessageDigest digest = MessageDigest.getInstance("MD5");
-            byte[] fileBytes = Files.readAllBytes(filePath);
-            byte[] hashBytes = digest.digest(fileBytes);
+            // Stream the file through the digest instead of loading it wholesale
+            // into memory (a mods folder can be gigabytes).
+            try (InputStream is = Files.newInputStream(filePath);
+                 DigestInputStream dis = new DigestInputStream(new BufferedInputStream(is, 1 << 16), digest)) {
+                byte[] buffer = new byte[1 << 16];
+                while (dis.read(buffer) != -1) {
+                    // read() feeds the digest as a side effect
+                }
+            }
 
+            byte[] hashBytes = digest.digest();
             StringBuilder sb = new StringBuilder();
             for (byte b : hashBytes) {
                 sb.append(String.format("%02x", b));
@@ -199,65 +344,23 @@ public class ModpackUpdater {
         }
     }
 
-    private static void handleOperation(ModpackInfo modpack, String serverModpackRoot, ChangeOperation op) {
-        try {
-            File baseDir = new File(ConfigManager.getInstance().getConfig().getCurseforge_path(), modpack.getRoot());
-            File targetFile;
-
-            switch (op.getType()) {
-                case "Added":
-                case "Modified":
-                    targetFile = new File(baseDir, op.getPath());
-                    downloadFileFromS3(serverModpackRoot, op.getPath(), targetFile);
-                    break;
-
-                case "Deleted":
-                    targetFile = new File(baseDir, op.getPath());
-                    if (targetFile.exists()) {
-                        Files.delete(targetFile.toPath());
-                        System.out.println("Deleted file: " + op.getPath());
-                    }
-                    break;
-
-                case "Moved":
-                    File oldFile = new File(baseDir, op.getOldPath());
-                    File newFile = new File(baseDir, op.getNewPath());
-                    if (oldFile.exists()) {
-                        newFile.getParentFile().mkdirs();
-                        Files.move(oldFile.toPath(), newFile.toPath());
-                        System.out.println("Moved file: " + op.getOldPath() + " -> " + op.getNewPath());
-                    }
-                    break;
-
-                default:
-                    System.out.println("Unknown operation: " + op);
-            }
-
-        } catch (Exception e) {
-            System.err.println("Error handling operation: " + op);
-            e.printStackTrace();
-        }
-    }
-
     private static void downloadFileFromS3(String modpackId, String path, File destination) {
         String bucket = ConfigManager.getInstance().getConfig().getBucketName();
         String key = modpackId + "/" + path;
 
         try {
-            HeadObjectRequest headRequest = HeadObjectRequest.builder()
-                    .bucket(bucket)
-                    .key(key)
-                    .build();
-
-            B2ClientProvider.getClient().headObject(headRequest);
-
+            // GetObject alone throws NoSuchKeyException when the key is missing,
+            // so a preceding HeadObject would just be a wasted round trip.
             GetObjectRequest getRequest = GetObjectRequest.builder()
                     .bucket(bucket)
                     .key(key)
                     .build();
 
             try (InputStream inputStream = B2ClientProvider.getClient().getObject(getRequest)) {
-                destination.getParentFile().mkdirs();
+                File parent = destination.getParentFile();
+                if (parent != null) {
+                    parent.mkdirs();
+                }
                 try (FileOutputStream out = new FileOutputStream(destination)) {
                     inputStream.transferTo(out);
                 }
