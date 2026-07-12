@@ -151,6 +151,7 @@ public class MigrateModpackController implements Initializable{
         }
     }
 
+    // sets diagloge state
     public void setDialogStage(Stage stage) {
         this.dialogStage = stage;
     }
@@ -190,8 +191,10 @@ public class MigrateModpackController implements Initializable{
                         .bucket(bucketName)
                         .prefix(prefix)
                         .build();
-                ListObjectsV2Response response = client.listObjectsV2(request);
-                for (S3Object object : response.contents()) {
+                // Paginate so folders with more than 1000 objects are listed in
+                // full; a truncated listing would make valid files look
+                // local-only and get deleted below.
+                for (S3Object object : client.listObjectsV2Paginator(request).contents()) {
                     String key = object.key();
                     String md5Hash = object.eTag().replace("\"", "");
                     serverFileInfo.put(key, new FileInfo(md5Hash, object.size()));
@@ -345,9 +348,16 @@ public class MigrateModpackController implements Initializable{
     private String calculateMD5(Path filePath) throws IOException {
         try {
             java.security.MessageDigest digest = java.security.MessageDigest.getInstance("MD5");
-            byte[] fileBytes = Files.readAllBytes(filePath);
-            byte[] hashBytes = digest.digest(fileBytes);
+            try (java.io.InputStream is = Files.newInputStream(filePath);
+                 java.security.DigestInputStream dis =
+                         new java.security.DigestInputStream(new java.io.BufferedInputStream(is, 1 << 16), digest)) {
+                byte[] buffer = new byte[1 << 16];
+                while (dis.read(buffer) != -1) {
+                    // read() feeds the digest as a side effect
+                }
+            }
 
+            byte[] hashBytes = digest.digest();
             StringBuilder sb = new StringBuilder();
             for (byte b : hashBytes) {
                 sb.append(String.format("%02x", b));

@@ -73,12 +73,24 @@ public class MainController {
         Task<Void> fetchModpacksTask = getTask();
         new Thread(fetchModpacksTask).start();
 
-        boolean updateAvailable = SoftwareUpdateManager.checkForUpdate();
+        // Check for a software update off the UI thread; it makes a blocking
+        // GitHub HTTPS call that would otherwise freeze the window at startup.
+        softwareUpdateButton.setVisible(false);
+        softwareUpdateButton.setManaged(false);
 
-        if (!updateAvailable) {
-            softwareUpdateButton.setVisible(false);
-            softwareUpdateButton.setManaged(false);
-        }
+        Task<Boolean> updateCheckTask = new Task<>() {
+            @Override
+            protected Boolean call() {
+                return SoftwareUpdateManager.checkForUpdate();
+            }
+        };
+        updateCheckTask.setOnSucceeded(e -> {
+            if (Boolean.TRUE.equals(updateCheckTask.getValue())) {
+                softwareUpdateButton.setVisible(true);
+                softwareUpdateButton.setManaged(true);
+            }
+        });
+        new Thread(updateCheckTask).start();
     }
 
     @FXML
@@ -309,7 +321,10 @@ public class MainController {
                     if (manifestFile.exists()) {
                         try {
                             ModpackInfo info = mapper.readValue(manifestFile, ModpackInfo.class);
-                            localModpacks.put(folder.getName(), info);
+                            // Key by modpackId to stay consistent with the server
+                            // registry and GUI.loadLocalModpacks(); keying by folder
+                            // name breaks update matching when they differ.
+                            localModpacks.put(info.getModpackId(), info);
                         } catch (IOException e) {
                             System.err.println("Failed to load manifest in " + folder.getName() + ": " + e.getMessage());
                         }
