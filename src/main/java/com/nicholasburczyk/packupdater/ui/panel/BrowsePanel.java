@@ -1,5 +1,6 @@
 package com.nicholasburczyk.packupdater.ui.panel;
 
+import com.nicholasburczyk.packupdater.core.InstanceFactory;
 import com.nicholasburczyk.packupdater.model.ModpackInfo;
 import com.nicholasburczyk.packupdater.ui.Icons;
 import com.nicholasburczyk.packupdater.ui.Theme;
@@ -112,9 +113,11 @@ public final class BrowsePanel extends JPanel {
 
         JPanel buttons = Ui.column();
         JButton create = Ui.button("Set up for me", Icons.MAGIC, Ui.ButtonStyle.PRIMARY);
-        create.setToolTipText("Creates the CurseForge profile and downloads the modpack");
+        create.setEnabled(false);
+        create.setToolTipText("Checking whether a profile template is published");
         create.addActionListener(e -> actions.createInstance(pack));
         create.setAlignmentX(Component.RIGHT_ALIGNMENT);
+        probeTemplate(pack, create, text);
 
         JButton existing = Ui.button("Use my folder", Icons.FOLDER, Ui.ButtonStyle.SECONDARY);
         existing.setToolTipText("Point at a CurseForge profile you already made");
@@ -129,6 +132,39 @@ public final class BrowsePanel extends JPanel {
 
         row.setMaximumSize(new Dimension(Integer.MAX_VALUE, row.getPreferredSize().height));
         return row;
+    }
+
+    private static void probeTemplate(ModpackInfo pack, JButton create, JPanel text) {
+        new SwingWorker<Boolean, Void>() {
+            @Override
+            protected Boolean doInBackground() {
+                return InstanceFactory.hasTemplate(pack);
+            }
+
+            @Override
+            protected void done() {
+                boolean available;
+                try {
+                    available = get();
+                } catch (Exception e) {
+                    available = false;
+                }
+                create.setEnabled(available);
+                if (available) {
+                    create.setToolTipText("Creates the CurseForge profile and downloads the modpack");
+                    return;
+                }
+                create.setToolTipText("No profile template published for this modpack yet");
+                JPanel note = Ui.row(Theme.GAP_S,
+                        new JLabel(Icons.of(Icons.INFO, 12, Theme.TEXT_FAINT)),
+                        Ui.faint("No profile template yet, use Use my folder"));
+                note.setAlignmentX(Component.LEFT_ALIGNMENT);
+                text.add(Ui.strut(Theme.GAP_XS));
+                text.add(note);
+                text.revalidate();
+                text.repaint();
+            }
+        }.execute();
     }
 
     private static void loadArtwork(ModpackInfo pack, JLabel target) {

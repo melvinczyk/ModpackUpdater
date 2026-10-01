@@ -213,10 +213,14 @@ public final class Choosers {
     }
 
     private static Result windowsDirectory(String title, Path start) {
+        Path script = null;
         try {
+            script = Files.createTempFile("packupdater-picker", ".ps1");
+            Files.writeString(script, WINDOWS_PICKER, StandardCharsets.UTF_8);
+
             ProcessBuilder builder = new ProcessBuilder(List.of(
                     "powershell.exe", "-NoProfile", "-STA", "-ExecutionPolicy", "Bypass",
-                    "-Command", WINDOWS_PICKER));
+                    "-File", script.toAbsolutePath().toString()));
             builder.environment().put("PICKER_TITLE", title == null ? "Select a folder" : title);
             builder.environment().put("PICKER_START", start.toString());
 
@@ -251,6 +255,14 @@ public final class Choosers {
             return Result.picked(picked);
         } catch (Exception e) {
             return Result.failure(e.getMessage());
+        } finally {
+            if (script != null) {
+                try {
+                    Files.deleteIfExists(script);
+                } catch (Exception ignored) {
+                    script.toFile().deleteOnExit();
+                }
+            }
         }
     }
 }

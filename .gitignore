@@ -43,3 +43,6 @@ bin/
 ### Local config - never track, contains credentials ###
 settings.json
 **/settings.json
+
+### IntelliJ ###
+.idea/
