@@ -1,5 +1,6 @@
 package com.nicholasburczyk.packupdater.ui.panel;
 
+import com.nicholasburczyk.packupdater.config.ConfigManager;
 import com.nicholasburczyk.packupdater.core.ModpackSync;
 import com.nicholasburczyk.packupdater.model.ModpackInfo;
 import com.nicholasburczyk.packupdater.ui.Icons;
@@ -10,6 +11,7 @@ import com.nicholasburczyk.packupdater.ui.component.PackArtwork;
 
 import javax.swing.Icon;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingWorker;
@@ -32,6 +34,8 @@ public final class PackPanel extends JPanel {
         void recheck(ModpackInfo local, ModpackInfo server);
 
         void openFolder(ModpackInfo local);
+
+        void setUsePackIcon(ModpackInfo local, boolean usePackIcon);
     }
 
     public PackPanel(ModpackInfo local, ModpackInfo server, Actions actions) {
@@ -117,9 +121,30 @@ public final class PackPanel extends JPanel {
         Ui.capHeight(buttons, 38);
         text.add(buttons);
 
+        text.add(Ui.strut(Theme.GAP_M));
+        text.add(buildIconToggle(local, actions));
+
         hero.add(text, BorderLayout.CENTER);
         hero.setMaximumSize(new Dimension(Integer.MAX_VALUE, hero.getPreferredSize().height));
         return hero;
+    }
+
+    private JPanel buildIconToggle(ModpackInfo local, Actions actions) {
+        boolean usePackIcon = ConfigManager.getInstance().getConfig()
+                .usesPackIcon(local.getModpackId());
+
+        JCheckBox toggle = new JCheckBox("Use the modpack's icon in CurseForge", usePackIcon);
+        toggle.setFont(Theme.small());
+        toggle.setForeground(Theme.TEXT_DIM);
+        toggle.setOpaque(false);
+        toggle.setFocusPainted(false);
+        toggle.setToolTipText("Reapplied after every update. Uncheck to keep an icon you picked yourself.");
+        toggle.addActionListener(e -> actions.setUsePackIcon(local, toggle.isSelected()));
+
+        JPanel row = Ui.row(Theme.GAP_S, toggle, Ui.glue());
+        row.setAlignmentX(Component.LEFT_ALIGNMENT);
+        Ui.capHeight(row, 26);
+        return row;
     }
 
     private JPanel buildFacts(ModpackInfo local, ModpackInfo server) {

@@ -14,6 +14,7 @@ public class Config {
     private String appKey = "";
     private String bucketName = "GroidPack";
     private String[] ignoredFiles = {".DS_Store", ".bzEmpty"};
+    private String[] customIconModpacks = new String[0];
 
     public String getCurseforge_path() {
         return curseforge_path;
@@ -77,6 +78,41 @@ public class Config {
 
     public void setIgnoredFiles(String[] ignoredFiles) {
         this.ignoredFiles = ignoredFiles;
+    }
+
+    public String[] getCustomIconModpacks() {
+        return customIconModpacks;
+    }
+
+    public void setCustomIconModpacks(String[] customIconModpacks) {
+        this.customIconModpacks = customIconModpacks == null ? new String[0] : customIconModpacks;
+    }
+
+    @JsonIgnore
+    public boolean usesPackIcon(String modpackId) {
+        if (modpackId == null) {
+            return true;
+        }
+        for (String id : customIconModpacks) {
+            if (modpackId.equals(id)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @JsonIgnore
+    public void setUsesPackIcon(String modpackId, boolean usePackIcon) {
+        if (modpackId == null) {
+            return;
+        }
+        java.util.List<String> ids = new java.util.ArrayList<>(
+                java.util.Arrays.asList(customIconModpacks));
+        ids.remove(modpackId);
+        if (!usePackIcon) {
+            ids.add(modpackId);
+        }
+        customIconModpacks = ids.toArray(new String[0]);
     }
 
     @JsonIgnore

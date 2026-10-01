@@ -56,6 +56,12 @@ You need Java 17 or newer installed. Check by opening Terminal and running:
 
 If that fails, install it from https://adoptium.net (pick the .pkg for your Mac).
 
+FOLDER ICON (optional)
+----------------------
+To give this folder the GroidPack icon: select the folder in Finder, press
+Command-I, click the small icon at the top left of the info window, then drag
+folder.icns onto it.
+
 TO LAUNCH
 ---------
 Double-click PackUpdater.jar
@@ -96,6 +102,10 @@ TO LAUNCH
 ---------
 Double-click PackUpdater.jar
 
+FOLDER ICON (optional)
+----------------------
+Double-click "Apply folder icon.bat" once to give this folder the GroidPack icon.
+
 IF DOUBLE-CLICKING OPENS THE WRONG PROGRAM
 ------------------------------------------
 Windows sometimes associates .jar with an archive tool. Use the launcher instead:
@@ -114,10 +124,16 @@ tasks.register('createLaunchers') {
         delete launchersDir
         launchersDir.mkdirs()
 
+        def iconDir = 'src/main/resources/com/nicholasburczyk/packupdater/images'
+
         def macDir = new File(launchersDir, 'GroidPack Updater-MacOS')
         macDir.mkdirs()
         copy {
             from jarFile
+            into macDir
+        }
+        copy {
+            from "${iconDir}/folder.icns"
             into macDir
         }
         new File(macDir, 'Launch PackUpdater.command').text =
@@ -137,9 +153,30 @@ tasks.register('createLaunchers') {
             from jarFile
             into winDir
         }
+        copy {
+            from "${iconDir}/folder.ico"
+            into winDir
+        }
         new File(winDir, 'Launch PackUpdater.bat').text =
                 '@echo off\r\ncd /d "%~dp0"\r\njava -jar PackUpdater.jar\r\nif errorlevel 1 pause\r\n'
         new File(winDir, 'FIRST-TIME-SETUP.txt').text = winSetupText
+
+        new File(winDir, 'desktop.ini').text =
+                '[.ShellClassInfo]\r\nIconResource=folder.ico,0\r\nIconFile=folder.ico\r\n' +
+                        'IconIndex=0\r\nInfoTip=Double-click PackUpdater.jar to launch\r\n'
+
+        new File(winDir, 'Apply folder icon.bat').text = [
+                '@echo off',
+                'setlocal',
+                'set "FOLDER=%~dp0"',
+                'if "%FOLDER:~-1%"=="\\" set "FOLDER=%FOLDER:~0,-1%"',
+                'attrib +h +s "%FOLDER%\\desktop.ini"',
+                'attrib +s "%FOLDER%"',
+                'ie4uinit.exe -show',
+                'echo Folder icon applied to "%FOLDER%".',
+                'echo If it has not changed yet, press F5 in Explorer.',
+                'pause'
+        ].join('\r\n') + '\r\n'
 
         ant.zip(destfile: new File(launchersDir, 'GroidPack Updater-Windows.zip')) {
             zipfileset(dir: winDir, prefix: 'GroidPack Updater-Windows')

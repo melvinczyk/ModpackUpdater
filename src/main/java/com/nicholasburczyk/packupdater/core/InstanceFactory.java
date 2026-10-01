@@ -12,10 +12,12 @@ import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -26,6 +28,7 @@ public final class InstanceFactory {
 
     public static final String TEMPLATE_KEY = "instance-template.json";
 
+    private static final String PROFILE_IMAGE_FOLDER = "profileImage";
     private static final String INSTANCE_FILE = "minecraftinstance.json";
     private static final String CLIENT_FILE = ".curseclient";
     private static final String EPOCH = "0001-01-01T00:00:00";
@@ -140,6 +143,100 @@ public final class InstanceFactory {
 
     private static String separator() {
         return System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win") ? "\\" : "/";
+    }
+
+    public static boolean syncProfileImage(Path instanceFolder, String modpackId) {
+        Path source = findArtwork(instanceFolder.resolve(PROFILE_IMAGE_FOLDER));
+        if (source == null) {
+            return false;
+        }
+        Path assets = curseForgeCustomImages();
+        if (assets == null) {
+            return false;
+        }
+        Path instanceFile = instanceFolder.resolve(INSTANCE_FILE);
+        if (!Files.isRegularFile(instanceFile)) {
+            return false;
+        }
+
+        try {
+            Files.createDirectories(assets);
+            Path target = assets.resolve(stableImageName(modpackId, instanceFolder,
+                    extensionOf(source.getFileName().toString())));
+
+            ObjectNode node = (ObjectNode) MAPPER.readTree(instanceFile.toFile());
+            String current = node.path("profileImagePath").asText(null);
+            boolean pointsAtOurs = current != null && !current.isBlank()
+                    && Path.of(current).normalize().equals(target.normalize());
+
+            if (pointsAtOurs && Files.isRegularFile(target) && sameContent(source, target)) {
+                return false;
+            }
+
+            Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
+            node.put("profileImagePath", target.toAbsolutePath().toString());
+            MAPPER.enable(SerializationFeature.INDENT_OUTPUT);
+            MAPPER.writeValue(instanceFile.toFile(), node);
+            return true;
+        } catch (IOException e) {
+            System.err.println("Could not set the profile image: " + e.getMessage());
+            return false;
+        }
+    }
+
+    private static boolean sameContent(Path left, Path right) {
+        try {
+            return Files.size(left) == Files.size(right)
+                    && Hashing.md5(left).equalsIgnoreCase(Hashing.md5(right));
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    private static String stableImageName(String modpackId, Path instanceFolder, String extension) {
+        String base = modpackId == null || modpackId.isBlank()
+                ? instanceFolder.getFileName().toString()
+                : modpackId;
+        String safe = base.replaceAll("[^A-Za-z0-9 _-]", "").trim();
+        if (safe.isEmpty()) {
+            safe = "modpack";
+        }
+        return "GroidPack-" + safe + extension;
+    }
+
+    private static Path findArtwork(Path folder) {
+        if (!Files.isDirectory(folder)) {
+            return null;
+        }
+        File[] files = folder.toFile().listFiles(file -> file.isFile() && isImage(file.getName()));
+        return files == null || files.length == 0 ? null : files[0].toPath();
+    }
+
+    private static boolean isImage(String name) {
+        String lower = name.toLowerCase(Locale.ROOT);
+        return lower.endsWith(".png") || lower.endsWith(".jpg")
+                || lower.endsWith(".jpeg") || lower.endsWith(".webp");
+    }
+
+    private static String extensionOf(String name) {
+        int dot = name.lastIndexOf('.');
+        return dot < 0 ? ".png" : name.substring(dot);
+    }
+
+    private static Path curseForgeCustomImages() {
+        String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+        Path home = Path.of(System.getProperty("user.home"));
+        if (os.contains("win")) {
+            String appData = System.getenv("APPDATA");
+            Path base = appData != null && !appData.isBlank()
+                    ? Path.of(appData)
+                    : home.resolve("AppData/Roaming");
+            return base.resolve("CurseForge/CfApp_Assets/ModpackImages/custom");
+        }
+        if (os.contains("mac")) {
+            return home.resolve("Library/Application Support/CurseForge/CfApp_Assets/ModpackImages/custom");
+        }
+        return null;
     }
 
     public static ObjectNode scrubForTemplate(Path instanceFile) throws IOException {

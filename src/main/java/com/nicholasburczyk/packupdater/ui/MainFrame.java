@@ -55,6 +55,7 @@ public final class MainFrame extends JFrame implements Sidebar.Listener,
     private Map<String, ModpackInfo> installedPacks = new LinkedHashMap<>();
     private SoftwareUpdater.Release pendingRelease;
     private String openPackId;
+    private Path createdFolder;
     private boolean loading;
 
     public MainFrame() {
@@ -242,6 +243,7 @@ public final class MainFrame extends JFrame implements Sidebar.Listener,
             ModpackSync.apply(local, server, report, progress);
             return report;
         }, applied -> {
+            refreshPackIcon(local);
             PackArtwork.invalidate();
             refresh();
             if (!applied.failures().isEmpty()) {
@@ -320,6 +322,7 @@ public final class MainFrame extends JFrame implements Sidebar.Listener,
             if (prepared == null) {
                 return;
             }
+            createdFolder = instancesRoot.resolve(folderName);
             finishAdd(prepared.local(), server, prepared.report());
         }, error -> Dialogs.error(this, "Could not create the instance", Dialogs.readable(error)));
     }
@@ -370,6 +373,8 @@ public final class MainFrame extends JFrame implements Sidebar.Listener,
             ModpackSync.apply(local, server, report, progress);
             return report;
         }, applied -> {
+            refreshPackIcon(local);
+            createdFolder = null;
             PackArtwork.invalidate();
             openPackId = server.getModpackId();
             refresh();
@@ -383,6 +388,26 @@ public final class MainFrame extends JFrame implements Sidebar.Listener,
             refresh();
             Dialogs.error(this, "Could not add the modpack", Dialogs.readable(error));
         });
+    }
+
+    private void refreshPackIcon(ModpackInfo local) {
+        if (!ConfigManager.getInstance().getConfig().usesPackIcon(local.getModpackId())) {
+            return;
+        }
+        Path folder = createdFolder != null ? createdFolder : ModpackSync.localRoot(local);
+        if (Files.isDirectory(folder)) {
+            InstanceFactory.syncProfileImage(folder, local.getModpackId());
+        }
+    }
+
+    @Override
+    public void setUsePackIcon(ModpackInfo local, boolean usePackIcon) {
+        Config config = ConfigManager.getInstance().getConfig();
+        config.setUsesPackIcon(local.getModpackId(), usePackIcon);
+        ConfigManager.getInstance().saveConfig();
+        if (usePackIcon) {
+            refreshPackIcon(local);
+        }
     }
 
     private String validateInstanceFolder(Path folder) {
