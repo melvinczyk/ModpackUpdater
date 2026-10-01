@@ -3,12 +3,12 @@ package com.nicholasburczyk.packupdater.server;
 import com.nicholasburczyk.packupdater.model.ModpackInfo;
 
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 public class ModpackRegistry {
-    private static final Map<String, ModpackInfo> serverModpacks = new HashMap<>();
-    private static final Map<String, ModpackInfo> localModpacks = new HashMap<>();
+    private static final Map<String, ModpackInfo> serverModpacks = new LinkedHashMap<>();
+    private static final Map<String, ModpackInfo> localModpacks = new LinkedHashMap<>();
 
     public static void setServerModpacks(Map<String, ModpackInfo> newData) {
         serverModpacks.clear();

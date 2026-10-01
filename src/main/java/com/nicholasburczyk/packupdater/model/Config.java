@@ -1,69 +1,74 @@
 package com.nicholasburczyk.packupdater.model;
 
-public class Config {
-    private String curseforge_path;
-    private String[] modpack_path_overrides;
-    private String endpoint;
-    private boolean autoUpdate;
-    private String keyID;
-    private String appKey;
-    private String bucketName;
-    private String[] ignoredFiles;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
-    public void setCurseforge_path(String path) {
-        this.curseforge_path = path;
+@JsonIgnoreProperties(ignoreUnknown = true)
+public class Config {
+
+    private String curseforge_path = "";
+    private String[] modpack_path_overrides = new String[0];
+    private String endpoint = "https://s3.us-east-005.backblazeb2.com";
+    private boolean autoUpdate = false;
+    private String keyID = "";
+    private String appKey = "";
+    private String bucketName = "GroidPack";
+    private String[] ignoredFiles = {".DS_Store", ".bzEmpty"};
+
+    public String getCurseforge_path() {
+        return curseforge_path;
     }
 
-    public void setModpack_path_overrides(String[] overrides) {
-        this.modpack_path_overrides = overrides;
+    public void setCurseforge_path(String curseforge_path) {
+        this.curseforge_path = curseforge_path;
+    }
+
+    public String[] getModpack_path_overrides() {
+        return modpack_path_overrides;
+    }
+
+    public void setModpack_path_overrides(String[] modpack_path_overrides) {
+        this.modpack_path_overrides = modpack_path_overrides;
+    }
+
+    public String getEndpoint() {
+        return endpoint;
     }
 
     public void setEndpoint(String endpoint) {
         this.endpoint = endpoint;
     }
 
+    public boolean getAutoUpdate() {
+        return autoUpdate;
+    }
+
     public void setAutoUpdate(boolean autoUpdate) {
         this.autoUpdate = autoUpdate;
-    }
-
-    public void setKeyID(String keyID) {
-        this.keyID = keyID;
-    }
-
-    public void setAppKey(String appKey) {
-        this.appKey = appKey;
-    }
-
-    public void setBucketName(String name) {
-        this.bucketName = name;
-    }
-
-    public String getCurseforge_path() {
-        return this.curseforge_path;
-    }
-
-    public String[] getModpack_path_overrides() {
-        return this.modpack_path_overrides;
-    }
-
-    public String getEndpoint() {
-        return this.endpoint;
     }
 
     public String getKeyID() {
         return keyID;
     }
 
-    public String getAppKey() {
-        return this.appKey;
+    public void setKeyID(String keyID) {
+        this.keyID = keyID;
     }
 
-    public boolean getAutoUpdate() {
-        return this.autoUpdate;
+    public String getAppKey() {
+        return appKey;
+    }
+
+    public void setAppKey(String appKey) {
+        this.appKey = appKey;
     }
 
     public String getBucketName() {
-        return this.bucketName;
+        return bucketName;
+    }
+
+    public void setBucketName(String bucketName) {
+        this.bucketName = bucketName;
     }
 
     public String[] getIgnoredFiles() {
@@ -72,5 +77,24 @@ public class Config {
 
     public void setIgnoredFiles(String[] ignoredFiles) {
         this.ignoredFiles = ignoredFiles;
+    }
+
+    @JsonIgnore
+    public boolean hasCredentials() {
+        return isSet(keyID) && isSet(appKey) && isSet(endpoint) && isSet(bucketName);
+    }
+
+    @JsonIgnore
+    public boolean hasInstancesPath() {
+        return isSet(curseforge_path);
+    }
+
+    @JsonIgnore
+    public boolean isReady() {
+        return hasCredentials() && hasInstancesPath();
+    }
+
+    private static boolean isSet(String value) {
+        return value != null && !value.isBlank();
     }
 }

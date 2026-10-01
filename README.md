@@ -1,82 +1,127 @@
-# 🛠️ Minecraft Modpack Updater
+# GroidPack Updater
 
-Keep your Minecraft modpacks up to date—automatically.
+Keep your Minecraft modpacks identical to the server, automatically.
 
 ---
 
-## 🧩 The Problem
+## The problem
 
-Managing modded Minecraft servers can be tedious. Constant file changes mean manually syncing updates across all your friends’ modpack instances. I had to do this and it was awful, usually leading to giving them a completely new updated instance which discards important personal folders like screenshots and map files.
+Running a modded server means constant file changes, and every change has to reach everyone's
+instance. Doing that by hand usually ends with handing people a whole fresh instance, which throws
+away their screenshots, worlds and settings.
 
-## ✅ The Solution
+## The solution
 
-This application uses an Amazon S3 bucket to host the latest version of your modpack and a manifest to track changes. It provides a centralized version for everyone to sync to, eliminating manual work. All your friends need to do is click **“Update”**.
+The modpack lives in a Backblaze B2 bucket with a manifest describing what belongs in each version.
+Everyone syncs against that. Your friends click **Update** and they are done.
 
-This app keeps consistent modpack versions across all clients by:
-- Connecting to an Amazon S3 bucket containing modpack data
-- Downloading and applying updates locally
-- Tracking modpack changes over time
-<img width="1112" alt="Screenshot 2025-06-10 at 11 32 38 AM" src="https://github.com/user-attachments/assets/db32657d-8d6b-49d9-afe8-498cf750cc41" />
+- Connects to an S3-compatible bucket holding modpack data
+- Downloads and applies changes locally
+- Tracks modpack changes over time, with a changelog per version
+- Never touches worlds, screenshots, or anything outside the tracked folders
 
 ## Features
 
-- Configurable client S3 Bucket settings
-- Ability to migrate old modpacks to a server modpack to start tracking
-- Ability to create a brand new local modpack and update to any server modpack
-- Git-style tracking of changes
-- Ability to update existing added modpacks to latest version
-- Ability to view changelogs of the modpacks
-- Full admin panel equiped with update pushes, new folder tracking declarations, and new server modpack additions
-- Future software update download and installing
+- Configurable S3 bucket settings with a connection test
+- Add an existing or brand new CurseForge instance and start tracking it
+- Only instances that match a server modpack appear, so personal profiles stay out of the way
+- **Re-check**: compare every tracked file against the server and repair drift
+- Git-style tracking of changes with a per-version changelog
+- Admin panel for publishing versions, picking tracked folders, and reviewing diffs
+- In-app software updates
 
-## How to track a local modpack
+## Requirements
 
-<img width="612" alt="Screenshot 2025-06-10 at 12 34 34 PM" src="https://github.com/user-attachments/assets/0ca73ca6-daf4-4c14-8124-3d4c8babaf37" />
+Java 17 or newer, and CurseForge for your Minecraft profiles.
 
-This entire application assumes the client is using Curseforge: https://www.curseforge.com, to run minecraft profile instances.
+Get Java from [adoptium.net](https://adoptium.net) if `java -version` fails.
 
-### Brand New local modpack
+## Installing
 
-1. Open this application and view which server modpack you would like to add.
-2. Make a new profile instance on curseforge with the server's Minecraft version, and Modloader version
-3. Click on "Migrate Old Modpack" and pass in the root directory of this new modpack.
-4. Click on which server modpack you would like to download.
-5. Click ok
+Download the zip for your platform from the releases page and unzip it anywhere.
 
-### Existing modpack
+**Windows** — double-click `PackUpdater.jar`. If Windows opens it with an archive tool instead,
+use `Launch PackUpdater.bat`.
 
-This only works if you have an existing modpack that is already on the server but never locally tracked.
+**macOS** — double-click `PackUpdater.jar`. The first time, macOS will say the file is from an
+unidentified developer. Right-click (or Control-click) it, choose **Open**, then **Open** again.
+That is only needed once. If double-clicking does nothing, use `Launch PackUpdater.command`.
 
-1. Click on "Migrate Old Modpacks" and pass in the root directory of your local modpack
-2. When you choose which server modpack you want make sure it is the correct version as the local one
+Each zip ships a `FIRST-TIME-SETUP.txt` with the same instructions.
 
-For example: I have ServerV3 modpack locally but never tracked it. ServerV3 is on the server and able for me to start tracking. I pass in the root of my local ServerV3 modpack and click the ServerV3 modpack on the server.
+`settings.json` is written next to the jar, so keep the unzipped folder somewhere you can write to.
+If that folder is read-only, settings fall back to `~/.packupdater/settings.json`.
 
-## Important Settings
+## First run
 
-In order for this to work you NEED a server URL and correct credentials. If you do not have these then nothing will happen. Get the Application Key and KeyID from your admin and place them in settings.
+Two settings are required before anything works. Both are in **Settings**.
 
-Additionally, you NEED a curseforge instances path. This is the root directory for every curseforge instance profile. NOTHING will work if you do not have this setting. It is typically located in Users/user/<directory>/curseforge/minecraft/instances.
+1. **CurseForge instances folder.** Press **Detect** and it will usually find it. Otherwise, in
+   CurseForge click the three dots next to the search bar, choose *Open modding folder*, then go
+   into `minecraft` and pick `Instances`.
+2. **Key ID and application key.** Ask your admin. The server URL and bucket are normally already
+   correct. Press **Test connection** to confirm.
 
-<img width="1112" alt="Screenshot 2025-06-10 at 11 33 52 AM" src="https://github.com/user-attachments/assets/c5f0712b-3f06-4766-bc44-0f5339f6753f" />
+## Adding a modpack
 
-## Admin Controls
+1. Look at the pack under **On the server** and note its Minecraft and mod loader versions.
+2. In CurseForge, create a new profile with exactly those versions.
+3. Back here, click **Add modpack**, pick the pack, and choose that new instance folder.
 
-### Pushing a new version
+Folder picking uses the operating system's own browser, opened at your instances folder, so the new
+profile is normally one click away.
 
-You must pass in a local and server modpack to compare differences. These MUST be the same modpack server/local or this will not work and you will screw everything up. 
-Changes will be displayed on the card list on the bottom, click the changes you want to push for the version. You then need to stage them before pushing to the server. Add a new version number and then a description, then push to the server.
+This also works for an instance you already have that matches a server pack but was never tracked.
 
-There are 3 operations, ADD, DELETE, and MODIFY.
+## Update vs Re-check
 
-<img width="1312" alt="Screenshot 2025-06-10 at 11 34 22 AM" src="https://github.com/user-attachments/assets/a06daa21-547a-404c-8c95-eadcb740e267" />
+**Update** appears when the server has a newer version. It shows exactly what will change, then
+downloads it.
 
-### Adding a new folder to track
+**Re-check** compares every tracked file against the server and repairs anything that drifted. Use
+it when the game crashes, a mod went missing, or files were added by accident. It:
 
-The folder section will display all of the lcoal folders on your modpack, if the folders are checked then that means they are being tracked. To add a folder, just keep it clicked when you push a new version.
+- downloads files that are missing
+- replaces files that differ from the server
+- deletes files inside tracked folders that the server does not have
+- leaves saves, screenshots, resource packs, and everything outside tracked folders alone
 
-### Adding a new server modpack
+Both show a full list of changes and wait for confirmation before touching a single file.
 
-Click the "Upload New Modpack" button and then pass in the ROOT of your local new modpack. Next give it a display name and fill in the minecraft version, modloader name/version, creator, name, description, and folders to track. Then press push, the modpack is now on the server and can be used to track local ones.
+## Admin controls
 
+### Publishing a version
 
+Pick the matching local and server modpack. These must be the same modpack or you will publish
+nonsense. Press **Compare**, review the diff, untick anything you do not want, set a version number
+higher than the current one, write a changelog line, then **Publish version**.
+
+Operations are recorded as Added, Modified, and Deleted.
+
+### Choosing what is tracked
+
+The **Tracked content** tab lists the folders and loose files in your local instance. Whatever is
+ticked when you publish becomes the tracked set for that version. Anything the server tracks but
+that is missing locally is shown in red.
+
+## Building
+
+```bash
+./gradlew createLaunchers
+```
+
+Produces `build/launchers/GroidPack Updater-Windows.zip` and `GroidPack Updater-MacOS.zip`. The
+macOS zip stores the Unix executable bit on `.command` so the launcher is runnable after unzipping.
+
+For a plain jar:
+
+```bash
+./gradlew shadowJar
+```
+
+## Releasing
+
+Bump `version` in `build.gradle`, build, and attach `PackUpdater.jar` to a GitHub release tagged
+`v<version>`. The in-app updater looks for an asset named `PackUpdater.jar`, verifies the manifest
+version inside it is newer, stages it alongside the current jar, and swaps it in on restart. The
+running jar is never deleted before the replacement is verified.
