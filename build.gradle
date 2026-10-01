@@ -1,10 +1,9 @@
 plugins {
     id 'application'
-    id 'org.openjfx.javafxplugin' version '0.0.13'
     id 'com.github.johnrengelman.shadow' version '8.1.1'
 }
 
-version = '1.3.0'
+version = '2.0.0'
 
 repositories {
     mavenCentral()
@@ -17,110 +16,136 @@ dependencies {
     implementation 'software.amazon.awssdk:s3:2.25.0'
     implementation 'org.slf4j:slf4j-simple:2.0.13'
     implementation 'org.json:json:20231013'
-
-    implementation "org.openjfx:javafx-controls:17.0.2"
-    implementation "org.openjfx:javafx-fxml:17.0.2"
+    implementation 'com.formdev:flatlaf:3.5.1'
+    implementation 'com.formdev:flatlaf-extras:3.5.1'
+    implementation 'com.github.weisj:jsvg:1.4.0'
 }
 
-javafx {
-    version = "17.0.2"
-    modules = [ 'javafx.controls', 'javafx.fxml' ]
+tasks.withType(JavaCompile).configureEach {
+    options.release = 17
+    options.encoding = 'UTF-8'
 }
 
 application {
     mainClass = 'com.nicholasburczyk.packupdater.Main'
 }
 
+jar {
+    enabled = false
+}
+
 shadowJar {
-    archiveBaseName = 'packupdater'
-    archiveClassifier = ''
-    archiveVersion = version
+    archiveFileName = 'PackUpdater.jar'
     mergeServiceFiles()
     manifest {
-        attributes 'Main-Class': application.mainClass
+        attributes(
+                'Main-Class': application.mainClass,
+                'Implementation-Title': 'GroidPack Updater',
+                'Implementation-Version': project.version,
+                'Enable-Native-Access': 'ALL-UNNAMED'
+        )
     }
 }
 
-task createLaunchers {
+def macSetupText = '''GroidPack Updater - macOS first launch
+======================================
+
+You need Java 17 or newer installed. Check by opening Terminal and running:
+
+    java -version
+
+If that fails, install it from https://adoptium.net (pick the .pkg for your Mac).
+
+TO LAUNCH
+---------
+Double-click PackUpdater.jar
+
+The FIRST time only, macOS will likely say the file "cannot be opened because it
+is from an unidentified developer". That is Gatekeeper, not a broken download.
+
+    Right-click (or Control-click) PackUpdater.jar, then choose Open,
+    then click Open again in the dialog.
+
+macOS remembers this, so every launch after the first is a normal double-click.
+
+IF DOUBLE-CLICKING DOES NOTHING
+-------------------------------
+Some Macs do not associate .jar files with Java. Use the launcher instead:
+
+    Double-click "Launch PackUpdater.command"
+
+IF YOU GET A PERMISSION ERROR
+-----------------------------
+Open Terminal, type "cd " (with the space), drag this folder into the Terminal
+window, press Return, then run these two lines:
+
+    xattr -dr com.apple.quarantine .
+    chmod +x "Launch PackUpdater.command"
+'''
+
+def winSetupText = '''GroidPack Updater - Windows first launch
+=======================================
+
+You need Java 17 or newer installed. Check by opening Command Prompt and running:
+
+    java -version
+
+If that fails, install it from https://adoptium.net (pick the .msi).
+
+TO LAUNCH
+---------
+Double-click PackUpdater.jar
+
+IF DOUBLE-CLICKING OPENS THE WRONG PROGRAM
+------------------------------------------
+Windows sometimes associates .jar with an archive tool. Use the launcher instead:
+
+    Double-click "Launch PackUpdater.bat"
+'''
+
+tasks.register('createLaunchers') {
     dependsOn shadowJar
     group = 'distribution'
-    description = 'Creates launcher scripts and packages for Windows and macOS.'
+    description = 'Builds the macOS and Windows distribution zips.'
 
     doLast {
         def jarFile = shadowJar.archiveFile.get().asFile
         def launchersDir = file("${buildDir}/launchers")
+        delete launchersDir
         launchersDir.mkdirs()
 
-        // === macOS ===
-        def macDir = new File(launchersDir, "GroidPack Updater-MacOS")
+        def macDir = new File(launchersDir, 'GroidPack Updater-MacOS')
         macDir.mkdirs()
-
         copy {
             from jarFile
             into macDir
         }
+        new File(macDir, 'Launch PackUpdater.command').text =
+                '#!/bin/bash\ncd "$(dirname "$0")"\nexec java -jar PackUpdater.jar\n'
+        new File(macDir, 'FIRST-TIME-SETUP.txt').text = macSetupText
 
-        copy {
-            from "javafx-mac"
-            into "${macDir}/javafx"
+        ant.zip(destfile: new File(launchersDir, 'GroidPack Updater-MacOS.zip')) {
+            zipfileset(dir: macDir, includes: '*.command', filemode: '755',
+                    prefix: 'GroidPack Updater-MacOS')
+            zipfileset(dir: macDir, excludes: '*.command',
+                    prefix: 'GroidPack Updater-MacOS')
         }
 
-        // .command launcher
-        def macCommand = new File(macDir, "(CLICK TO RUN) PackUpdater.command")
-        macCommand.text = """#!/bin/bash
-                    cd "\$(dirname "\$0")"
-                    java --module-path javafx/lib --add-modules javafx.controls,javafx.fxml -jar ${jarFile.name}
-                    """
-        macCommand.setExecutable(true)
-
-        copy {
-            from("src/main/resources/com/nicholasburczyk/packupdater/images/folder.icns")
-            into macDir
-        }
-
-        ant.zip(destfile: new File(launchersDir, "GroidPack Updater-MacOS.zip"), basedir: macDir)
-
-        // === Windows ===
-        def winDir = new File(launchersDir, "GroidPack Updater-Windows")
+        def winDir = new File(launchersDir, 'GroidPack Updater-Windows')
         winDir.mkdirs()
-
         copy {
             from jarFile
             into winDir
         }
+        new File(winDir, 'Launch PackUpdater.bat').text =
+                '@echo off\r\ncd /d "%~dp0"\r\njava -jar PackUpdater.jar\r\nif errorlevel 1 pause\r\n'
+        new File(winDir, 'FIRST-TIME-SETUP.txt').text = winSetupText
 
-        copy {
-            from "javafx-win"
-            into "${winDir}/javafx"
+        ant.zip(destfile: new File(launchersDir, 'GroidPack Updater-Windows.zip')) {
+            zipfileset(dir: winDir, prefix: 'GroidPack Updater-Windows')
         }
 
-        // .bat launcher
-        def winBat = new File(winDir, "(CLICK ME) PackUpdater.bat")
-        winBat.text = """@echo off
-                    cd /d "%~dp0"
-                    java --module-path javafx\\lib --add-modules javafx.controls,javafx.fxml -jar ${jarFile.name}
-                    pause
-                    """
-
-        def iconSetupBat = new File(winDir, "icon_setup.bat")
-        iconSetupBat.text = """@echo off
-                    attrib +r "../GroidPack Updater-Windows"
-                    attrib +h "../GroidPack Updater-Windows\\desktop.ini"
-                    ie4uinit.exe -show
-                    pause
-                    """
-
-        def desktopIni = new File(winDir, "desktop.ini")
-        desktopIni.text = """[.ShellClassInfo]
-                    IconResource=folder.ico,0
-                    InfoTip=Double-click to launch PackUpdater
-                    """
-
-        copy {
-            from("src/main/resources/com/nicholasburczyk/packupdater/images/folder.ico")
-            into winDir
-        }
-
-        ant.zip(destfile: new File(launchersDir, "GroidPack Updater-Windows.zip"), basedir: winDir)
+        logger.lifecycle("Distribution zips written to ${launchersDir}")
     }
 }
+

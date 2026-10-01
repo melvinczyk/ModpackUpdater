@@ -1,5 +1,8 @@
 package com.nicholasburczyk.packupdater.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class ChangeOperation {
     private String type;
     private String path;
