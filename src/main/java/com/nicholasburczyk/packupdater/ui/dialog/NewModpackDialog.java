@@ -36,10 +36,6 @@ import java.util.Map;
 
 public final class NewModpackDialog extends JDialog {
 
-    private static final java.util.Set<String> SKIPPED = java.util.Set.of(
-            "logs", "crash-reports", "screenshots", "saves", "backups", "local",
-            "shaderpacks", "profileimage");
-
     private final JTextField nameField = Ui.field("GroidPack V6");
     private final JTextField idField = Ui.field("groidpack-v6");
     private final JTextField versionField = Ui.field("1.0.0");
@@ -239,7 +235,7 @@ public final class NewModpackDialog extends JDialog {
             Arrays.sort(directories, Comparator.comparing(File::getName, String.CASE_INSENSITIVE_ORDER));
             for (File directory : directories) {
                 String name = directory.getName();
-                if (name.startsWith(".") || SKIPPED.contains(name.toLowerCase(Locale.ROOT))) {
+                if (name.startsWith(".")) {
                     continue;
                 }
                 boolean common = name.equalsIgnoreCase("mods") || name.equalsIgnoreCase("config");

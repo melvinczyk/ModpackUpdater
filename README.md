@@ -28,7 +28,7 @@ Click Add modpack, pick a pack, then either:
 
 **Update** appears when the server has a newer version.
 
-**Re-check** compares every tracked file against the server and repairs anything that drifted. It downloads what is missing, replaces what differs, and deletes files added inside tracked folders. Saves, screenshots and resource packs are left alone.
+**Re-check** compares every tracked file against the server and repairs anything that drifted. It downloads what is missing, replaces what differs, and deletes files added inside tracked folders. Anything outside the tracked folders is left alone.
 
 Both show the full list and wait for confirmation.
 

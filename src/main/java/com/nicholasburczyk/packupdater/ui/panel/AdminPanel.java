@@ -48,11 +48,6 @@ import java.util.Set;
 
 public final class AdminPanel extends JPanel {
 
-    private static final Set<String> SKIPPED_FOLDERS = Set.of(
-            "logs", "crash-reports", "screenshots", "saves", "backups", "local",
-            "shaderpacks", "resourcepacks", "profileImage"
-    );
-
     private final MainFrame frame;
     private final JComboBox<ModpackInfo> localSelector = new JComboBox<>();
     private final JComboBox<ModpackInfo> serverSelector = new JComboBox<>();
@@ -430,7 +425,7 @@ public final class AdminPanel extends JPanel {
             Arrays.sort(directories, Comparator.comparing(File::getName, String.CASE_INSENSITIVE_ORDER));
             for (File directory : directories) {
                 String name = directory.getName();
-                if (name.startsWith(".") || SKIPPED_FOLDERS.contains(name.toLowerCase())) {
+                if (name.startsWith(".")) {
                     continue;
                 }
                 addCheckBox(foldersBox, trackedFolders, name, serverFolders.contains(name), false);
