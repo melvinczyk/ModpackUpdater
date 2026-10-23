@@ -80,6 +80,12 @@ public final class TaskDialog<T> extends JDialog implements Progress {
 
     public static <T> void run(Window owner, String title, boolean cancellable, Work<T> work,
                                Consumer<T> onSuccess, Consumer<Throwable> onFailure) {
+        run(owner, title, cancellable, work, onSuccess, onFailure, null);
+    }
+
+    /** {@code onCancel} runs after the user cancels, e.g. to re-read files a half-done task touched. */
+    public static <T> void run(Window owner, String title, boolean cancellable, Work<T> work,
+                               Consumer<T> onSuccess, Consumer<Throwable> onFailure, Runnable onCancel) {
         TaskDialog<T> dialog = new TaskDialog<>(owner, title, cancellable);
 
         SwingWorker<T, Void> worker = new SwingWorker<>() {
@@ -92,6 +98,9 @@ public final class TaskDialog<T> extends JDialog implements Progress {
             protected void done() {
                 dialog.dispose();
                 if (dialog.isCancelled()) {
+                    if (onCancel != null) {
+                        onCancel.run();
+                    }
                     return;
                 }
                 try {

@@ -79,7 +79,10 @@ public final class InstanceFactory {
         Files.writeString(folder.resolve(CLIENT_FILE), guid, StandardCharsets.UTF_8);
 
         for (String name : folders) {
-            Files.createDirectories(folder.resolve(name));
+            Path tracked = ModpackSync.inside(folder, name);
+            if (tracked != null) {
+                Files.createDirectories(tracked);
+            }
         }
         Files.createDirectories(folder.resolve("mods"));
 

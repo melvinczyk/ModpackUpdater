@@ -77,8 +77,7 @@ public final class AdminPanel extends JPanel {
     public AdminPanel(MainFrame frame) {
         this.frame = frame;
         setLayout(new BorderLayout());
-        setOpaque(true);
-        setBackground(Theme.BG);
+        setOpaque(false);
         setBorder(Ui.pad(Theme.GAP_L));
 
         publishButton = Ui.button("Publish", Icons.UPLOAD, Ui.ButtonStyle.PRIMARY);
@@ -93,8 +92,10 @@ public final class AdminPanel extends JPanel {
         tabs.addTab("Tracked content", buildTrackedTab());
         add(tabs, BorderLayout.CENTER);
 
-        localSelector.addActionListener(e -> onSelectionChanged());
-        serverSelector.addActionListener(e -> onSelectionChanged());
+        serverSelector.addActionListener(e -> {
+            pairLocalToServer();
+            onSelectionChanged();
+        });
 
         addHierarchyListener(e -> {
             boolean showing = isShowing();
@@ -107,61 +108,44 @@ public final class AdminPanel extends JPanel {
         });
     }
 
+    /**
+     * One picker: the server modpack. The matching local instance is found by modpack id, so the
+     * two sides can never be different packs.
+     */
     private JPanel buildHeader() {
         JPanel card = Ui.card(Theme.SURFACE);
         card.setLayout(new BorderLayout());
         card.setBorder(Ui.pad(Theme.GAP_M, Theme.GAP_L, Theme.GAP_M, Theme.GAP_L));
 
-        JPanel row = Ui.row();
-        localSelector.setRenderer(packRenderer("Pick a local modpack"));
-        serverSelector.setRenderer(packRenderer("Pick a server modpack"));
-        localSelector.setPreferredSize(new Dimension(230, 34));
-        serverSelector.setPreferredSize(new Dimension(230, 34));
-        Ui.capHeight(localSelector, 34);
+        serverSelector.setRenderer(packRenderer("Pick a modpack"));
+        serverSelector.setPreferredSize(new Dimension(260, 34));
         Ui.capHeight(serverSelector, 34);
 
         JButton compare = Ui.button("Compare", Icons.SEARCH, Ui.ButtonStyle.PRIMARY);
         compare.addActionListener(e -> compare());
 
-        JButton newPack = Ui.button("New modpack", Icons.PLUS, Ui.ButtonStyle.SECONDARY);
+        JButton newPack = Ui.button("New modpack", null, Ui.ButtonStyle.GHOST);
         newPack.addActionListener(e -> createModpack());
 
-        JButton template = Ui.button("Set template", Icons.FOLDER_NEW, Ui.ButtonStyle.SECONDARY);
-        template.setToolTipText("Upload this local instance as the profile template players get");
+        JButton template = Ui.button("Player template", null, Ui.ButtonStyle.GHOST);
+        template.setToolTipText("Upload your local copy as the profile players get with Set up for me");
         template.addActionListener(e -> publishTemplate());
 
-        row.add(Ui.dim("Local"));
-        row.add(Ui.strut(Theme.GAP_S));
-        row.add(localSelector);
-        row.add(Ui.strut(Theme.GAP_L));
-        row.add(Ui.dim("Server"));
+        JPanel row = Ui.row();
+        row.add(Ui.dim("Modpack"));
         row.add(Ui.strut(Theme.GAP_S));
         row.add(serverSelector);
-        row.add(Ui.strut(Theme.GAP_L));
+        row.add(Ui.strut(Theme.GAP_M));
         row.add(compare);
-        row.add(Ui.strut(Theme.GAP_S));
+        row.add(Ui.strut(Theme.GAP_M));
         row.add(versionLabel);
         row.add(Ui.glue());
         row.add(template);
-        row.add(Ui.strut(Theme.GAP_S));
         row.add(newPack);
-
-        JPanel warning = Ui.row(Theme.GAP_S,
-                new JLabel(Icons.of(Icons.WARNING, 13, Theme.WARNING)),
-                Ui.faint("Both must be the same modpack."));
-
-        JPanel stack = Ui.column();
-        stack.add(row);
-        stack.add(Ui.strut(Theme.GAP_S));
-        stack.add(warning);
-        card.add(stack, BorderLayout.CENTER);
+        card.add(row, BorderLayout.CENTER);
 
         JPanel wrapper = Ui.column();
-        JLabel heading = Ui.title("Admin panel");
-        heading.setAlignmentX(Component.LEFT_ALIGNMENT);
         card.setAlignmentX(Component.LEFT_ALIGNMENT);
-        wrapper.add(heading);
-        wrapper.add(Ui.strut(Theme.GAP_M));
         wrapper.add(card);
         wrapper.add(Ui.strut(Theme.GAP_M));
         return wrapper;
@@ -172,14 +156,12 @@ public final class AdminPanel extends JPanel {
         panel.setOpaque(false);
         panel.setBorder(Ui.pad(Theme.GAP_M, 0, 0, 0));
 
-        JButton selectAll = Ui.button("Select all", null, Ui.ButtonStyle.SECONDARY);
+        JButton selectAll = Ui.button("Select all", null, Ui.ButtonStyle.GHOST);
         selectAll.addActionListener(e -> tableModel.setAllSelected(true));
-        JButton selectNone = Ui.button("Select none", null, Ui.ButtonStyle.SECONDARY);
+        JButton selectNone = Ui.button("Select none", null, Ui.ButtonStyle.GHOST);
         selectNone.addActionListener(e -> tableModel.setAllSelected(false));
 
-        JPanel toolbar = Ui.row(Theme.GAP_S,
-                showAdded, showModified, showDeleted,
-                Ui.glue(), countLabel, Ui.strut(Theme.GAP_M), selectAll, selectNone);
+        JPanel toolbar = Ui.row(Theme.GAP_S, countLabel, Ui.glue(), selectAll, selectNone);
         Ui.capHeight(toolbar, 36);
 
         configureTable();
@@ -226,15 +208,13 @@ public final class AdminPanel extends JPanel {
 
         JLabel intro = Ui.wrapped("Checked items are synced to everyone on publish.", Theme.TEXT_DIM);
 
-        JButton rescan = Ui.button("Rescan", Icons.REFRESH, Ui.ButtonStyle.SECONDARY);
+        JButton rescan = Ui.button("Rescan", null, Ui.ButtonStyle.GHOST);
         rescan.addActionListener(e -> loadTrackedContent());
 
         JPanel head = Ui.column();
-        head.add(intro);
-        head.add(Ui.strut(Theme.GAP_S));
-        JPanel rescanRow = Ui.row(0, rescan, Ui.glue());
-        Ui.capHeight(rescanRow, 36);
-        head.add(rescanRow);
+        JPanel introRow = Ui.row(Theme.GAP_S, intro, Ui.glue(), rescan);
+        Ui.capHeight(introRow, 36);
+        head.add(introRow);
         head.add(Ui.strut(Theme.GAP_M));
 
         JPanel columns = new JPanel(new GridLayout(1, 2, Theme.GAP_L, 0));
@@ -345,22 +325,35 @@ public final class AdminPanel extends JPanel {
         localSelector.setModel(new DefaultComboBoxModel<>(locals.toArray(new ModpackInfo[0])));
         serverSelector.setModel(new DefaultComboBoxModel<>(servers.toArray(new ModpackInfo[0])));
 
-        restore(localSelector, previousLocal);
         restore(serverSelector, previousServer);
-        pairByModpackId();
+        if (selectedServer() == null && previousLocal != null) {
+            selectServerFor(previousLocal);
+        }
+        pairLocalToServer();
         onSelectionChanged();
     }
 
-    private void pairByModpackId() {
-        ModpackInfo local = selectedLocal();
-        if (local == null || selectedServer() != null) {
-            return;
-        }
+    private void selectServerFor(ModpackInfo local) {
         for (int i = 0; i < serverSelector.getItemCount(); i++) {
             ModpackInfo candidate = serverSelector.getItemAt(i);
-            if (candidate.getModpackId() != null
-                    && candidate.getModpackId().equals(local.getModpackId())) {
+            if (candidate.getModpackId() != null && candidate.getModpackId().equals(local.getModpackId())) {
                 serverSelector.setSelectedIndex(i);
+                return;
+            }
+        }
+    }
+
+    /** Selects the installed copy of the chosen server modpack, or nothing when it isn't installed. */
+    private void pairLocalToServer() {
+        ModpackInfo server = selectedServer();
+        localSelector.setSelectedIndex(-1);
+        if (server == null || server.getModpackId() == null) {
+            return;
+        }
+        for (int i = 0; i < localSelector.getItemCount(); i++) {
+            ModpackInfo candidate = localSelector.getItemAt(i);
+            if (server.getModpackId().equals(candidate.getModpackId())) {
+                localSelector.setSelectedIndex(i);
                 return;
             }
         }
@@ -384,20 +377,14 @@ public final class AdminPanel extends JPanel {
         ModpackInfo server = selectedServer();
 
         if (server == null) {
-            versionLabel.setText("No server modpack selected");
+            versionLabel.setText("");
         } else {
-            versionLabel.setText("Server is on v" + server.getVersion());
             versionField.setText(AdminPublisher.suggestNextVersion(server.getVersion()));
+            versionLabel.setText(local == null
+                    ? "No local copy installed"
+                    : "Server v" + server.getVersion() + ", yours v" + local.getVersion());
         }
-
-        if (local != null && server != null
-                && local.getModpackId() != null && server.getModpackId() != null
-                && !local.getModpackId().equals(server.getModpackId())) {
-            versionLabel.setText("Different modpacks selected");
-            versionLabel.setForeground(Theme.DANGER);
-        } else {
-            versionLabel.setForeground(Theme.TEXT_DIM);
-        }
+        versionLabel.setForeground(local == null && server != null ? Theme.WARNING : Theme.TEXT_DIM);
 
         loadTrackedContent();
     }
@@ -411,8 +398,8 @@ public final class AdminPanel extends JPanel {
         ModpackInfo local = selectedLocal();
         ModpackInfo server = selectedServer();
         if (local == null) {
-            foldersBox.add(Ui.faint("Pick a local modpack first."));
-            filesBox.add(Ui.faint("Pick a local modpack first."));
+            foldersBox.add(Ui.faint("Install this modpack locally to edit what it tracks."));
+            filesBox.add(Ui.faint("Install this modpack locally to edit what it tracks."));
             refreshTrackedBoxes();
             return;
         }
@@ -506,7 +493,7 @@ public final class AdminPanel extends JPanel {
         ModpackInfo local = selectedLocal();
         ModpackInfo server = selectedServer();
         if (local == null || server == null) {
-            Dialogs.warn(this, "Pick both modpacks", "Select a local and a server modpack first.");
+            Dialogs.warn(this, "Nothing to compare", "Pick a modpack you also have installed locally.");
             return;
         }
         if (trackedFolders.isEmpty() && trackedFiles.isEmpty()) {
@@ -572,7 +559,18 @@ public final class AdminPanel extends JPanel {
             versionHint.setForeground(Theme.SUCCESS);
         }
 
-        publishButton.setEnabled(staged && higher && described);
+        boolean sameModpack = !isMismatch(selectedLocal(), server);
+        publishButton.setEnabled(staged && higher && described && sameModpack);
+    }
+
+    /**
+     * True when the local and server selections are different modpacks. Publishing then would
+     * delete the server pack's files and replace them with another pack's, so it is blocked.
+     */
+    private static boolean isMismatch(ModpackInfo local, ModpackInfo server) {
+        return local != null && server != null
+                && local.getModpackId() != null && server.getModpackId() != null
+                && !local.getModpackId().equals(server.getModpackId());
     }
 
     private void createModpack() {
@@ -598,7 +596,7 @@ public final class AdminPanel extends JPanel {
         ModpackInfo local = selectedLocal();
         ModpackInfo server = selectedServer();
         if (local == null || server == null) {
-            Dialogs.warn(this, "Pick both modpacks", "Select a local and a server modpack first.");
+            Dialogs.warn(this, "Nothing to compare", "Pick a modpack you also have installed locally.");
             return;
         }
         java.nio.file.Path instanceFile = ModpackSync.localRoot(local).resolve("minecraftinstance.json");
@@ -641,6 +639,11 @@ public final class AdminPanel extends JPanel {
         ModpackInfo local = selectedLocal();
         ModpackInfo server = selectedServer();
         if (local == null || server == null) {
+            return;
+        }
+        if (isMismatch(local, server)) {
+            Dialogs.warn(this, "Different modpacks",
+                    "The local and server modpacks don't match. Pick the same modpack on both sides.");
             return;
         }
 

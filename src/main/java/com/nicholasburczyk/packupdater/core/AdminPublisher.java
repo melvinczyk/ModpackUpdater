@@ -1,5 +1,6 @@
 package com.nicholasburczyk.packupdater.core;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -13,6 +14,7 @@ import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Object;
 
@@ -291,6 +293,11 @@ public final class AdminPublisher {
 
         progress.message("Registering the modpack");
         ObjectNode registry = readRegistry(client, bucket, mapper);
+        JsonNode existing = registry.get(request.displayName());
+        if (existing != null && !request.root().equals(existing.asText())) {
+            throw new IOException("Another modpack is already called \"" + request.displayName()
+                    + "\" on the server. Pick a different display name.");
+        }
         registry.put(request.displayName(), request.root());
         client.putObject(PutObjectRequest.builder()
                 .bucket(bucket)
@@ -317,26 +324,32 @@ public final class AdminPublisher {
                 mapper.writerWithDefaultPrettyPrinter().writeValueAsString(template)));
     }
 
+    /** Throws when the server can't be asked, so a failed check never reads as "free". */
     public static boolean rootExists(String root) {
-        try {
-            ListObjectsV2Request request = ListObjectsV2Request.builder()
-                    .bucket(ConfigManager.getInstance().getConfig().getBucketName())
-                    .prefix(root + "/")
-                    .maxKeys(1)
-                    .build();
-            return !B2ClientProvider.getClient().listObjectsV2(request).contents().isEmpty();
-        } catch (Exception e) {
-            return false;
-        }
+        ListObjectsV2Request request = ListObjectsV2Request.builder()
+                .bucket(ConfigManager.getInstance().getConfig().getBucketName())
+                .prefix(root + "/")
+                .maxKeys(1)
+                .build();
+        return !B2ClientProvider.getClient().listObjectsV2(request).contents().isEmpty();
     }
 
-    private static ObjectNode readRegistry(S3Client client, String bucket, ObjectMapper mapper) {
+    /**
+     * Only a missing {@code modpacks.json} starts a fresh registry. Any other failure (timeout,
+     * bad key, malformed JSON) aborts, because writing an empty registry back would remove every
+     * other modpack for all players.
+     */
+    private static ObjectNode readRegistry(S3Client client, String bucket, ObjectMapper mapper) throws IOException {
         try (ResponseInputStream<GetObjectResponse> response = client.getObject(GetObjectRequest.builder()
                 .bucket(bucket)
                 .key("modpacks.json")
                 .build())) {
-            return (ObjectNode) mapper.readTree(new String(response.readAllBytes(), StandardCharsets.UTF_8));
-        } catch (Exception e) {
+            JsonNode node = mapper.readTree(new String(response.readAllBytes(), StandardCharsets.UTF_8));
+            if (!(node instanceof ObjectNode registry)) {
+                throw new IOException("modpacks.json on the server is not a JSON object; refusing to overwrite it.");
+            }
+            return registry;
+        } catch (NoSuchKeyException e) {
             return mapper.createObjectNode();
         }
     }
@@ -374,8 +387,14 @@ public final class AdminPublisher {
                 .key(server.getRoot() + "/manifest.json")
                 .build())) {
             String json = new String(response.readAllBytes(), StandardCharsets.UTF_8);
-            return (ObjectNode) mapper.readTree(json);
-        } catch (Exception e) {
+            JsonNode node = mapper.readTree(json);
+            if (!(node instanceof ObjectNode manifest)) {
+                throw new IOException("The server manifest for " + server.getRoot() + " is not a JSON object.");
+            }
+            return manifest;
+        } catch (NoSuchKeyException e) {
+            // Only a manifest that truly doesn't exist yet starts fresh; a failed read must not
+            // publish a manifest that has lost its changelog and Minecraft/loader details.
             ObjectNode fresh = mapper.createObjectNode();
             fresh.put("modpackId", server.getModpackId() == null ? server.getRoot() : server.getModpackId());
             fresh.put("displayName", server.getDisplayName() == null ? server.getRoot() : server.getDisplayName());

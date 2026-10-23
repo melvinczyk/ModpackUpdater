@@ -76,7 +76,6 @@ public final class ChangelogView {
     private static final class EntryCard extends Ui.RoundPanel {
 
         private final JPanel details;
-        private final JLabel chevron;
         private boolean open;
 
         EntryCard(ChangelogEntry entry, String installedVersion, boolean latest, boolean newer) {
@@ -87,11 +86,7 @@ public final class ChangelogView {
 
             JPanel body = Ui.column();
 
-            chevron = new JLabel(Icons.of(Icons.CHEVRON, 14, Theme.TEXT_FAINT));
-
             JPanel header = Ui.row();
-            header.add(chevron);
-            header.add(Ui.strut(Theme.GAP_S));
             header.add(Ui.label(entry.getVersion(), Theme.font(Font.BOLD, 14),
                     newer ? Theme.ACCENT : Theme.TEXT));
             header.add(Ui.strut(Theme.GAP_S));
@@ -229,8 +224,6 @@ public final class ChangelogView {
             }
             open = !open;
             details.setVisible(open);
-            chevron.setIcon(Icons.of(open ? Icons.CHEVRON_DOWN : Icons.CHEVRON, 14,
-                    open ? Theme.TEXT : Theme.TEXT_FAINT));
             revalidate();
             Animator.tween(Animator.FAST, progress -> repaint());
         }

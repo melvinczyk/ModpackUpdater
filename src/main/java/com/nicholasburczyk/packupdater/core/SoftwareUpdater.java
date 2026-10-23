@@ -24,6 +24,8 @@ public final class SoftwareUpdater {
     public static final String INSTALL_FLAG = "--install-update";
     public static final String SKIP_FLAG = "--skip-update-check";
 
+    private static volatile boolean updateCheckSkipped;
+
     private static final String FAILED_MARKER = "install-failed";
     private static final String RELEASE_URL =
             "https://api.github.com/repos/melvinczyk/ModpackUpdater/releases/latest";
@@ -49,6 +51,14 @@ public final class SoftwareUpdater {
         }
         String fromRuntime = SoftwareUpdater.class.getPackage().getImplementationVersion();
         return fromRuntime != null ? fromRuntime : DEV_VERSION;
+    }
+
+    /**
+     * True when this launch came from a failed install (or was asked not to update). The
+     * automatic update must then stay quiet, or a broken release would loop forever.
+     */
+    public static boolean isUpdateCheckSkipped() {
+        return updateCheckSkipped;
     }
 
     public static boolean canSelfUpdate() {
@@ -174,6 +184,7 @@ public final class SoftwareUpdater {
             return true;
         }
         if (indexOf(args, SKIP_FLAG) >= 0) {
+            updateCheckSkipped = true;
             return false;
         }
         if (hasStagedUpdate()) {
@@ -222,10 +233,23 @@ public final class SoftwareUpdater {
 
         boolean copied = false;
         for (int attempt = 0; attempt < COPY_ATTEMPTS && !copied; attempt++) {
+            // Copy next to the jar first, then swap it in with a single move, so a crash or a full
+            // disk mid-copy can never leave a truncated jar behind.
+            Path temp = target.resolveSibling(target.getFileName() + ".new");
             try {
-                Files.copy(staged, target, StandardCopyOption.REPLACE_EXISTING);
+                Files.copy(staged, temp, StandardCopyOption.REPLACE_EXISTING);
+                try {
+                    Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+                } catch (java.nio.file.AtomicMoveNotSupportedException e) {
+                    Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING);
+                }
                 copied = true;
             } catch (IOException e) {
+                try {
+                    Files.deleteIfExists(temp);
+                } catch (IOException ignored) {
+                    // Best effort; the next attempt overwrites it.
+                }
                 sleep(COPY_RETRY_MILLIS);
             }
         }

@@ -19,12 +19,14 @@ import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class PackArtwork {
 
     private static final String FOLDER = "profileImage";
     private static final Map<String, Icon> CACHE = new ConcurrentHashMap<>();
+    private static final Map<String, Optional<BufferedImage>> IMAGES = new ConcurrentHashMap<>();
 
     private PackArtwork() {
     }
@@ -49,8 +51,25 @@ public final class PackArtwork {
         return icon;
     }
 
+    /**
+     * Full-size artwork for a dashboard tile: the server image first (what the admin published),
+     * then the local profile image of the installed copy. Blocks on the network; call off the EDT.
+     */
+    public static BufferedImage image(ModpackInfo server, ModpackInfo local) {
+        String key = (server != null ? "server:" + server.getRoot() : "")
+                + (local != null ? "|local:" + local.getRoot() : "");
+        return IMAGES.computeIfAbsent(key, ignored -> {
+            BufferedImage image = server != null ? readRemote(server) : null;
+            if (image == null && local != null) {
+                image = readLocal(local);
+            }
+            return Optional.ofNullable(image);
+        }).orElse(null);
+    }
+
     public static void invalidate() {
         CACHE.clear();
+        IMAGES.clear();
     }
 
     private static BufferedImage readLocal(ModpackInfo pack) {

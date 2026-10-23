@@ -311,7 +311,15 @@ public final class NewModpackDialog extends JDialog {
             Dialogs.warn(this, "Nothing tracked", "Tick at least one folder or file.");
             return;
         }
-        if (AdminPublisher.rootExists(id)) {
+        boolean taken;
+        try {
+            taken = AdminPublisher.rootExists(id);
+        } catch (Exception e) {
+            Dialogs.warn(this, "Could not check the server",
+                    "Couldn't confirm that " + id + " is free, so nothing was created.\n\n" + Dialogs.readable(e));
+            return;
+        }
+        if (taken) {
             if (!Dialogs.confirm(this, "Server id in use",
                     "Something already exists at " + id + " on the server. Writing here may "
                             + "overwrite it.", "Use it anyway")) {

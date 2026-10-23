@@ -9,30 +9,29 @@ import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.GraphicsEnvironment;
-import java.util.Arrays;
+import java.io.InputStream;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 public final class Theme {
 
-    public static final Color BG = new Color(0x0D1117);
-    public static final Color SURFACE = new Color(0x161B22);
-    public static final Color SURFACE_ALT = new Color(0x1C2129);
-    public static final Color SURFACE_HOVER = new Color(0x21262D);
-    public static final Color BORDER = new Color(0x30363D);
-    public static final Color BORDER_STRONG = new Color(0x3D444D);
-    public static final Color TEXT = new Color(0xE6EDF3);
-    public static final Color TEXT_DIM = new Color(0x9198A1);
-    public static final Color TEXT_FAINT = new Color(0x6E7681);
-    public static final Color ACCENT = new Color(0x2F81F7);
-    public static final Color ACCENT_HOVER = new Color(0x4A94F8);
-    public static final Color ACCENT_SOFT = new Color(0x15335C);
-    public static final Color SUCCESS = new Color(0x3FB950);
-    public static final Color WARNING = new Color(0xD29922);
-    public static final Color DANGER = new Color(0xF85149);
+    public static final Color BG = new Color(0x020604);
+    public static final Color SURFACE = new Color(0x0A1810);
+    public static final Color SURFACE_ALT = new Color(0x102217);
+    public static final Color SURFACE_HOVER = new Color(0x17301F);
+    public static final Color BORDER = new Color(0x1E3A25);
+    public static final Color BORDER_STRONG = new Color(0x2E5638);
+    public static final Color TEXT = new Color(0xEAF7EC);
+    public static final Color TEXT_DIM = new Color(0xA3BCA8);
+    public static final Color TEXT_FAINT = new Color(0x6A8670);
+    public static final Color ACCENT = new Color(0x4FC926);
+    public static final Color ACCENT_HOVER = new Color(0x6BE33A);
+    public static final Color ACCENT_SOFT = new Color(0x123A16);
+    public static final Color LIME = new Color(0x8DFF3C);
+    public static final Color UPDATE = new Color(0xFF3B3B);
+    public static final Color SUCCESS = new Color(0x7FE04A);
+    public static final Color WARNING = new Color(0xFFC23A);
+    public static final Color DANGER = new Color(0xFF5B4D);
     public static final Color ON_ACCENT = Color.WHITE;
 
     public static final int GAP_XS = 4;
@@ -40,10 +39,12 @@ public final class Theme {
     public static final int GAP_M = 14;
     public static final int GAP_L = 20;
     public static final int GAP_XL = 28;
-    public static final int RADIUS = 10;
-    public static final int SIDEBAR_WIDTH = 278;
+    public static final int RADIUS = 12;
 
-    private static Font baseFont;
+    private static final String FONT_PATH = "/com/nicholasburczyk/packupdater/fonts/";
+    private static final String[] FONT_FILES = {"Exo2-Regular.ttf", "Exo2-SemiBold.ttf", "Exo2-Bold.ttf"};
+
+    private static String family;
 
     private Theme() {
     }
@@ -52,12 +53,12 @@ public final class Theme {
         FlatLaf.setGlobalExtraDefaults(extraDefaults());
         FlatDarkLaf.setup();
 
-        baseFont = pickFont();
-        UIManager.put("defaultFont", new FontUIResource(baseFont));
+        family = registerFonts();
+        UIManager.put("defaultFont", new FontUIResource(font(Font.PLAIN, 13)));
 
-        UIManager.put("Component.arc", 8);
-        UIManager.put("Button.arc", 8);
-        UIManager.put("TextComponent.arc", 8);
+        UIManager.put("Component.arc", 10);
+        UIManager.put("Button.arc", 10);
+        UIManager.put("TextComponent.arc", 10);
         UIManager.put("CheckBox.arc", 4);
         UIManager.put("ProgressBar.arc", 6);
         UIManager.put("Component.focusWidth", 1);
@@ -108,32 +109,56 @@ public final class Theme {
         defaults.put("TabbedPane.underlineColor", hex(ACCENT));
         defaults.put("TabbedPane.selectedBackground", hex(SURFACE));
         defaults.put("TabbedPane.contentAreaColor", hex(BORDER));
+        defaults.put("TabbedPane.hoverColor", hex(SURFACE_HOVER));
+        defaults.put("TabbedPane.focusColor", hex(SURFACE_ALT));
+        defaults.put("Table.selectionBackground", hex(SURFACE_HOVER));
+        defaults.put("Table.selectionForeground", hex(TEXT));
+        defaults.put("TableHeader.background", hex(SURFACE_ALT));
+        defaults.put("TableHeader.separatorColor", hex(BORDER));
+        defaults.put("TableHeader.bottomSeparatorColor", hex(BORDER));
+        defaults.put("CheckBox.icon.checkmarkColor", "#FFFFFF");
+        defaults.put("CheckBox.icon.selectedBackground", hex(ACCENT));
+        defaults.put("CheckBox.icon.selectedBorderColor", hex(LIME));
+        defaults.put("Component.focusColor", hex(LIME));
+        defaults.put("Component.focusedBorderColor", hex(ACCENT));
+        defaults.put("TextComponent.selectionBackground", hex(ACCENT));
+        defaults.put("List.selectionBackground", hex(ACCENT_SOFT));
+        defaults.put("ComboBox.selectionBackground", hex(ACCENT_SOFT));
+        defaults.put("TitlePane.background", hex(BG));
+        defaults.put("TitlePane.inactiveBackground", hex(BG));
         return defaults;
     }
 
-    private static Font pickFont() {
-        Set<String> available = Arrays.stream(GraphicsEnvironment.getLocalGraphicsEnvironment()
-                        .getAvailableFontFamilyNames())
-                .collect(Collectors.toSet());
-        List<String> preferred = List.of(
-                "Segoe UI Variable Text", "Segoe UI", "SF Pro Text", "Helvetica Neue",
-                "Inter", "Roboto", "Ubuntu", "DejaVu Sans"
-        );
-        for (String family : preferred) {
-            if (available.contains(family)) {
-                return new Font(family, Font.PLAIN, 13);
+    /**
+     * Registers the bundled Exo 2 faces so {@code new Font("Exo 2", BOLD, n)} picks the real
+     * bold face instead of a synthesized one. Falls back to the platform sans if loading fails.
+     */
+    private static String registerFonts() {
+        GraphicsEnvironment env = GraphicsEnvironment.getLocalGraphicsEnvironment();
+        String name = null;
+        for (String file : FONT_FILES) {
+            try (InputStream stream = Theme.class.getResourceAsStream(FONT_PATH + file)) {
+                if (stream == null) {
+                    continue;
+                }
+                Font loaded = Font.createFont(Font.TRUETYPE_FONT, stream);
+                env.registerFont(loaded);
+                if (name == null) {
+                    name = loaded.getFamily();
+                }
+            } catch (Exception e) {
+                System.err.println("Could not load font " + file + ": " + e.getMessage());
             }
         }
-        return new Font(Font.SANS_SERIF, Font.PLAIN, 13);
+        return name != null ? name : Font.SANS_SERIF;
     }
 
     public static Font font(int style, int size) {
-        Font base = baseFont != null ? baseFont : new Font(Font.SANS_SERIF, Font.PLAIN, 13);
-        return base.deriveFont(style, size);
+        return new Font(family != null ? family : Font.SANS_SERIF, style, size);
     }
 
     public static Font display() {
-        return font(Font.BOLD, 24);
+        return font(Font.BOLD, 26);
     }
 
     public static Font title() {
