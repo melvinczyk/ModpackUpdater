@@ -165,6 +165,11 @@ public final class Ui {
         return button;
     }
 
+    public static void setIcon(JButton button, String iconName, ButtonStyle style) {
+        button.setIcon(Icons.of(iconName, 16, style.foreground));
+        button.setDisabledIcon(Icons.of(iconName, 16, Theme.TEXT_FAINT));
+    }
+
     public static JButton iconButton(String iconName, String tooltip) {
         return iconButton(iconName, tooltip, Theme.TEXT_DIM, 17);
     }
@@ -275,6 +280,20 @@ public final class Ui {
         scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
         scroll.getVerticalScrollBar().setUnitIncrement(20);
         return scroll;
+    }
+
+    public static java.awt.geom.Path2D plate(double x, double y, double w, double h, double cut, double small) {
+        java.awt.geom.Path2D path = new java.awt.geom.Path2D.Double();
+        path.moveTo(x + cut, y);
+        path.lineTo(x + w - small, y);
+        path.lineTo(x + w, y + small);
+        path.lineTo(x + w, y + h - cut);
+        path.lineTo(x + w - cut, y + h);
+        path.lineTo(x + small, y + h);
+        path.lineTo(x, y + h - small);
+        path.lineTo(x, y + cut);
+        path.closePath();
+        return path;
     }
 
     public static Component glue() {

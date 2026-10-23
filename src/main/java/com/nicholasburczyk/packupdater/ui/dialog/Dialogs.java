@@ -1,5 +1,6 @@
 package com.nicholasburczyk.packupdater.ui.dialog;
 
+import com.nicholasburczyk.packupdater.ui.Sounds;
 import com.nicholasburczyk.packupdater.ui.Theme;
 import com.nicholasburczyk.packupdater.ui.Ui;
 
@@ -24,6 +25,7 @@ public final class Dialogs {
     }
 
     public static void error(Component parent, String title, String message) {
+        Sounds.play(Sounds.Effect.ERROR);
         JOptionPane.showMessageDialog(parent, body(message), title, JOptionPane.ERROR_MESSAGE);
     }
 

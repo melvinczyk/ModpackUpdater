@@ -37,6 +37,19 @@ public final class InstanceFactory {
     private InstanceFactory() {
     }
 
+    public static String instanceId(Path instanceFolder) {
+        Path file = instanceFolder.resolve(INSTANCE_FILE);
+        if (!Files.isRegularFile(file)) {
+            return null;
+        }
+        try {
+            com.fasterxml.jackson.databind.JsonNode guid = MAPPER.readTree(file.toFile()).get("guid");
+            return guid == null || guid.isNull() ? null : UUID.fromString(guid.asText().trim()).toString();
+        } catch (IOException | IllegalArgumentException e) {
+            return null;
+        }
+    }
+
     public static boolean hasTemplate(ModpackInfo server) {
         try {
             B2ClientProvider.getClient().headObject(HeadObjectRequest.builder()

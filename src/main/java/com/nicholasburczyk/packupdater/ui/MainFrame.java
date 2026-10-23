@@ -6,6 +6,8 @@ import com.nicholasburczyk.packupdater.core.InstanceFactory;
 import com.nicholasburczyk.packupdater.core.LocalModpackScanner;
 import com.nicholasburczyk.packupdater.core.ModpackSync;
 import com.nicholasburczyk.packupdater.core.PackOrder;
+import com.nicholasburczyk.packupdater.core.PlayerFaces;
+import com.nicholasburczyk.packupdater.core.Screenshots;
 import com.nicholasburczyk.packupdater.core.SoftwareUpdater;
 import com.nicholasburczyk.packupdater.core.SyncReport;
 import com.nicholasburczyk.packupdater.model.Config;
@@ -14,6 +16,7 @@ import com.nicholasburczyk.packupdater.server.B2ClientProvider;
 import com.nicholasburczyk.packupdater.server.ConnectionStatus;
 import com.nicholasburczyk.packupdater.server.ModpackRegistry;
 import com.nicholasburczyk.packupdater.ui.component.PackArtwork;
+import com.nicholasburczyk.packupdater.ui.component.ScreenshotGallery;
 import com.nicholasburczyk.packupdater.ui.dash.Dashboard;
 import com.nicholasburczyk.packupdater.ui.dash.Dashboard.TileSpec;
 import com.nicholasburczyk.packupdater.ui.dialog.AdminLoginDialog;
@@ -46,6 +49,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -56,6 +60,8 @@ public final class MainFrame extends JFrame implements Dashboard.Listener {
     private static final String ADD = "add";
     private static final String SETTINGS = "settings";
     private static final String ADMIN = "admin";
+    private static final String GALLERY = "gallery";
+    private static final int CURSEFORGE_MINECRAFT = 432;
 
     private enum State { LOADING, NOT_READY, OFFLINE, READY }
 
@@ -74,6 +80,8 @@ public final class MainFrame extends JFrame implements Dashboard.Listener {
     private Boolean connected;
     private String channel = PACKS;
     private boolean adminSignedIn;
+    private Map<String, List<Screenshots.Shot>> captures;
+    private boolean capturesLoading;
     private boolean firstLoad = true;
     private String openPackId;
     private Path createdFolder;
@@ -95,6 +103,8 @@ public final class MainFrame extends JFrame implements Dashboard.Listener {
     }
 
     public void start() {
+        Sounds.init(ConfigManager.getInstance().getConfig().getSound(), null);
+        Sounds.startMusic(1000);
         setVisible(true);
         render(true);
         refresh();
@@ -170,8 +180,29 @@ public final class MainFrame extends JFrame implements Dashboard.Listener {
             channel = ADD;
             animate = true;
         }
+        if (firstLoad) {
+            shareScreenshots(new ArrayList<>(orderedInstalled));
+        }
         firstLoad = false;
         render(animate);
+    }
+
+    private void shareScreenshots(List<ModpackInfo> locals) {
+        Path instances = Path.of(ConfigManager.getInstance().getConfig().getCurseforge_path());
+        Thread worker = new Thread(() -> {
+            try {
+                Screenshots.clearOldCache();
+                String player = Screenshots.detectPlayer(instances);
+                if (player != null) {
+                    Screenshots.upload(locals, player);
+                }
+            } catch (Exception e) {
+                System.err.println("Could not share screenshots: " + e.getMessage());
+            }
+        }, "screenshot-share");
+        worker.setDaemon(true);
+        worker.setPriority(Thread.MIN_PRIORITY);
+        worker.start();
     }
 
     // ------------------------------------------------------------- dashboard
@@ -202,6 +233,7 @@ public final class MainFrame extends JFrame implements Dashboard.Listener {
         List<Dashboard.Channel> channels = new ArrayList<>();
         int updates = (int) pending.values().stream().filter(count -> count > 0).count();
         channels.add(new Dashboard.Channel(PACKS, "My modpacks", updates));
+        channels.add(new Dashboard.Channel(GALLERY, "Gallery", 0));
         channels.add(new Dashboard.Channel(ADD, "Add modpack", 0));
         channels.add(new Dashboard.Channel(SETTINGS, "Settings", 0));
         if (adminSignedIn) {
@@ -214,10 +246,8 @@ public final class MainFrame extends JFrame implements Dashboard.Listener {
         dashboard.setAdminLabel(adminSignedIn ? "Sign out" : "Admin");
 
         switch (channel) {
-            case ADMIN -> {
-                adminPanel.reloadSelectors();
-                dashboard.showPage(ADMIN, adminPanel, () -> onChannel(PACKS));
-            }
+            case ADMIN -> dashboard.showTiles(ADMIN, adminTiles(), 0, animate);
+            case GALLERY -> dashboard.showTiles(GALLERY, galleryTiles(), remembered.getOrDefault(GALLERY, 0), animate);
             case ADD -> dashboard.showTiles(ADD, addTiles(), remembered.getOrDefault(ADD, 0), animate);
             case SETTINGS -> dashboard.showTiles(SETTINGS, settingsTiles(), remembered.getOrDefault(SETTINGS, 0), animate);
             default -> {
@@ -241,8 +271,125 @@ public final class MainFrame extends JFrame implements Dashboard.Listener {
         }
         if (AdminLoginDialog.authenticate(this)) {
             adminSignedIn = true;
-            onChannel(ADMIN);
+            channel = ADMIN;
+            render(true);
+            openAdmin();
         }
+    }
+
+    private void openAdmin() {
+        adminPanel.reloadSelectors();
+        dashboard.showPage(ADMIN, adminPanel, () -> onChannel(ADMIN));
+    }
+
+    private List<TileSpec> adminTiles() {
+        return List.of(TileSpec.icon("Admin panel", "Publish updates and manage modpacks", null, null, Icons.ADMIN,
+                () -> detail(text("Upload new versions, create modpacks and manage what players get."),
+                        List.of(button("Open", Icons.SETTINGS, Ui.ButtonStyle.PRIMARY, this::openAdmin))),
+                this::openAdmin));
+    }
+
+    private Map<String, String> galleryNames() {
+        Map<String, String> names = new LinkedHashMap<>();
+        for (ModpackInfo pack : serverPacks.values()) {
+            names.put(pack.getModpackId(), PackText.nameOf(pack));
+        }
+        return names;
+    }
+
+    private void loadCaptures() {
+        if (capturesLoading) {
+            return;
+        }
+        capturesLoading = true;
+        Map<String, String> names = galleryNames();
+        new SwingWorker<Map<String, List<Screenshots.Shot>>, Void>() {
+            @Override
+            protected Map<String, List<Screenshots.Shot>> doInBackground() {
+                return Screenshots.listAll(names.keySet());
+            }
+
+            @Override
+            protected void done() {
+                capturesLoading = false;
+                try {
+                    captures = get();
+                } catch (Exception e) {
+                    captures = new LinkedHashMap<>();
+                    System.err.println("Could not load the gallery: " + e.getMessage());
+                }
+                if (GALLERY.equals(channel) && !dashboard.inPage()) {
+                    render(false);
+                }
+            }
+        }.execute();
+    }
+
+    private List<TileSpec> galleryTiles() {
+        if (state != State.READY) {
+            return statusTiles();
+        }
+        if (captures == null) {
+            loadCaptures();
+            return List.of(TileSpec.icon("Loading", "Collecting everyone's captures", null, null, Icons.HEART,
+                    () -> detail(text("Checking the server for captures."), List.of()), null));
+        }
+        Map<String, String> names = galleryNames();
+        List<Map.Entry<String, List<Screenshots.Shot>>> packs = new ArrayList<>();
+        for (Map.Entry<String, List<Screenshots.Shot>> entry : captures.entrySet()) {
+            if (!entry.getValue().isEmpty() && names.containsKey(entry.getKey())) {
+                packs.add(entry);
+            }
+        }
+        packs.sort((a, b) -> Long.compare(b.getValue().get(0).taken(), a.getValue().get(0).taken()));
+        if (packs.isEmpty()) {
+            return List.of(TileSpec.icon("No captures yet", "Press F2 in game", null, null, Icons.HEART,
+                    () -> detail(text("Screenshots from every pack show up here the next time the updater opens."),
+                            List.of()), null));
+        }
+        List<TileSpec> tiles = new ArrayList<>();
+        for (Map.Entry<String, List<Screenshots.Shot>> entry : packs) {
+            String id = entry.getKey();
+            List<Screenshots.Shot> shots = entry.getValue();
+            int players = (int) shots.stream().map(Screenshots.Shot::player).distinct().count();
+            String counts = (shots.size() == 1 ? "1 capture" : shots.size() + " captures")
+                    + (players == 1 ? " from 1 player" : " from " + players + " players");
+            List<Screenshots.Shot> front = shots.subList(0, Math.min(3, shots.size()));
+            Runnable open = () -> openGallery(id);
+            tiles.add(TileSpec.photos(names.get(id), counts, null, null, serverPacks.get(id),
+                    () -> {
+                        List<java.awt.image.BufferedImage> images = new ArrayList<>();
+                        for (Screenshots.Shot shot : front) {
+                            try {
+                                images.add(Screenshots.thumbnail(shot));
+                            } catch (Exception ignored) {
+                            }
+                        }
+                        return images;
+                    },
+                    () -> {
+                        List<java.awt.image.BufferedImage> faces = new ArrayList<>();
+                        shots.stream().map(Screenshots.Shot::player).distinct().limit(6).forEach(name -> {
+                            java.awt.image.BufferedImage face = PlayerFaces.face(name);
+                            if (face != null) {
+                                faces.add(face);
+                            }
+                        });
+                        return faces;
+                    },
+                    () -> detail(text(counts + ". Latest " + PackText.date(java.time.Instant.ofEpochMilli(
+                                    shots.get(0).taken()).atZone(java.time.ZoneId.systemDefault()).toString()) + "."),
+                            List.of(button("Open gallery", Icons.FOCUS, Ui.ButtonStyle.PRIMARY, open))),
+                    open));
+        }
+        return tiles;
+    }
+
+    private void openGallery(String packId) {
+        dashboard.showPage(GALLERY, new ScreenshotGallery(galleryNames(), adminSignedIn, packId, captures), () -> {
+            captures = null;
+            onChannel(GALLERY);
+        });
     }
 
     private void openServerSettings() {
@@ -291,7 +438,7 @@ public final class MainFrame extends JFrame implements Dashboard.Listener {
             ModpackInfo server = serverPacks.get(local.getModpackId());
             int updates = pending.getOrDefault(local.getModpackId(), 0);
             boolean hasUpdate = updates > 0 && server != null;
-            Runnable primary = hasUpdate ? () -> update(local, server) : () -> openFolder(local);
+            Runnable primary = hasUpdate ? () -> updateAndPlay(local, server) : () -> play(local);
             tiles.add(TileSpec.pack(PackText.nameOf(local), PackText.metaOf(local),
                     hasUpdate ? "Update ready" : null, hasUpdate ? Theme.UPDATE : null,
                     server, local, () -> packDetail(local, server, hasUpdate), primary));
@@ -323,7 +470,8 @@ public final class MainFrame extends JFrame implements Dashboard.Listener {
             buttons.add(button("Repair", Icons.TARGET, Ui.ButtonStyle.SECONDARY, () -> recheck(local, server)));
             buttons.add(button("Open folder", Icons.FOLDER, Ui.ButtonStyle.SECONDARY, () -> openFolder(local)));
         } else {
-            buttons.add(button("Open folder", Icons.FOLDER, Ui.ButtonStyle.PRIMARY, () -> openFolder(local)));
+            buttons.add(button("Play", Icons.PLAY, Ui.ButtonStyle.PRIMARY, () -> play(local)));
+            buttons.add(button("Open folder", Icons.FOLDER, Ui.ButtonStyle.SECONDARY, () -> openFolder(local)));
             buttons.add(button("Repair", Icons.TARGET, Ui.ButtonStyle.SECONDARY, () -> recheck(local, server)));
         }
         for (JButton b : buttons) {
@@ -487,9 +635,13 @@ public final class MainFrame extends JFrame implements Dashboard.Listener {
     // -------------------------------------------------------------- detail ui
 
     private static JLabel text(String value) {
-        JLabel label = Ui.label("<html><body style='width:380px'>" + Ui.escape(value) + "</body></html>",
-                Theme.font(Font.PLAIN, 13), Theme.TEXT_DIM);
+        Font font = Theme.font(Font.PLAIN, 13);
+        JLabel label = Ui.label(value, font, Theme.TEXT_DIM);
+        if (label.getFontMetrics(font).stringWidth(value) > 380) {
+            label.setText("<html><body style='width:380px'>" + Ui.escape(value) + "</body></html>");
+        }
         label.setAlignmentX(0f);
+        label.setMaximumSize(label.getPreferredSize());
         return label;
     }
 
@@ -553,15 +705,19 @@ public final class MainFrame extends JFrame implements Dashboard.Listener {
 
     public void update(ModpackInfo local, ModpackInfo server) {
         runSync(local, server, "Checking " + PackText.nameOf(local),
-                "Update to " + server.getVersion(), true);
+                "Update to " + server.getVersion(), true, null);
+    }
+
+    public void updateAndPlay(ModpackInfo local, ModpackInfo server) {
+        runSync(local, server, "Checking " + PackText.nameOf(local), "Update and play", true, () -> play(local));
     }
 
     public void recheck(ModpackInfo local, ModpackInfo server) {
-        runSync(local, server, "Checking " + PackText.nameOf(local), "Repair files", false);
+        runSync(local, server, "Checking " + PackText.nameOf(local), "Repair files", false, null);
     }
 
     private void runSync(ModpackInfo local, ModpackInfo server, String title,
-                         String confirmLabel, boolean isUpdate) {
+                         String confirmLabel, boolean isUpdate, Runnable then) {
         if (server == null) {
             Dialogs.warn(this, "Not on the server", "This modpack is no longer on the server.");
             return;
@@ -570,6 +726,10 @@ public final class MainFrame extends JFrame implements Dashboard.Listener {
                 progress -> ModpackSync.plan(local, server, progress),
                 report -> {
                     if (report == null) {
+                        return;
+                    }
+                    if (report.isClean() && then != null) {
+                        then.run();
                         return;
                     }
                     if (report.isClean()) {
@@ -581,12 +741,13 @@ public final class MainFrame extends JFrame implements Dashboard.Listener {
                     if (!SyncReportDialog.show(this, PackText.nameOf(local), report, confirmLabel)) {
                         return;
                     }
-                    applyPlan(local, server, report, isUpdate);
+                    applyPlan(local, server, report, isUpdate, then);
                 },
                 error -> Dialogs.error(this, "Check failed", Dialogs.readable(error)));
     }
 
-    private void applyPlan(ModpackInfo local, ModpackInfo server, SyncReport report, boolean isUpdate) {
+    private void applyPlan(ModpackInfo local, ModpackInfo server, SyncReport report, boolean isUpdate,
+                           Runnable then) {
         TaskDialog.run(this, isUpdate ? "Updating" : "Repairing", true, progress -> {
             ModpackSync.apply(local, server, report, progress);
             return report;
@@ -599,12 +760,51 @@ public final class MainFrame extends JFrame implements Dashboard.Listener {
                         String.join("\n", applied.failures()));
                 return;
             }
+            Sounds.play(Sounds.Effect.SUCCESS);
+            if (then != null) {
+                then.run();
+                return;
+            }
             Dialogs.info(this, isUpdate ? "Updated" : "Repaired",
                     PackText.nameOf(local) + " now matches version " + applied.targetVersion() + ".");
         }, error -> {
             refresh();
             Dialogs.error(this, "Could not finish", Dialogs.readable(error));
         }, this::refresh);
+    }
+
+    public void play(ModpackInfo local) {
+        String id = InstanceFactory.instanceId(ModpackSync.localRoot(local));
+        if (id == null) {
+            Dialogs.warn(this, "Can't start this pack",
+                    "This pack has no CurseForge profile yet. Open CurseForge once so it finds the pack, then try again.");
+            return;
+        }
+        URI link = URI.create("curseforge://launch-game?instanceId=" + id + "&gameId=" + CURSEFORGE_MINECRAFT);
+        new SwingWorker<Void, Void>() {
+            @Override
+            protected Void doInBackground() throws Exception {
+                String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+                if (os.contains("win")) {
+                    new ProcessBuilder(List.of("rundll32", "url.dll,FileProtocolHandler", link.toString())).start();
+                } else if (os.contains("mac")) {
+                    new ProcessBuilder(List.of("open", link.toString())).start();
+                } else {
+                    Desktop.getDesktop().browse(link);
+                }
+                return null;
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    get();
+                } catch (Exception e) {
+                    Dialogs.error(MainFrame.this, "Could not start the game",
+                            "CurseForge needs to be installed to start packs.\n\n" + Dialogs.readable(e));
+                }
+            }
+        }.execute();
     }
 
     public void openFolder(ModpackInfo local) {
@@ -727,6 +927,7 @@ public final class MainFrame extends JFrame implements Dashboard.Listener {
                 Dialogs.warn(this, "Added with problems", String.join("\n", applied.failures()));
                 return;
             }
+            Sounds.play(Sounds.Effect.SUCCESS);
             Dialogs.info(this, "Ready",
                     PackText.nameOf(server) + " is installed. Launch it from CurseForge.");
         }, error -> {

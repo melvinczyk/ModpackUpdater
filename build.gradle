@@ -3,7 +3,7 @@ plugins {
     id 'com.github.johnrengelman.shadow' version '8.1.1'
 }
 
-version = '3.0.0'
+version = '3.1.0'
 
 repositories {
     mavenCentral()
@@ -19,6 +19,9 @@ dependencies {
     implementation 'com.formdev:flatlaf:3.5.1'
     implementation 'com.formdev:flatlaf-extras:3.5.1'
     implementation 'com.github.weisj:jsvg:1.4.0'
+    implementation('com.googlecode.soundlibs:mp3spi:1.9.5.4') {
+        exclude group: 'junit'
+    }
 }
 
 tasks.withType(JavaCompile).configureEach {

@@ -10,6 +10,7 @@ public class Config {
     private String[] modpack_path_overrides = new String[0];
     private String endpoint = "https://s3.us-east-005.backblazeb2.com";
     private boolean autoUpdate = false;
+    private boolean sound = true;
     private String keyID = "";
     private String appKey = "";
     private String bucketName = "GroidPack";
@@ -46,6 +47,14 @@ public class Config {
 
     public void setAutoUpdate(boolean autoUpdate) {
         this.autoUpdate = autoUpdate;
+    }
+
+    public boolean getSound() {
+        return sound;
+    }
+
+    public void setSound(boolean sound) {
+        this.sound = sound;
     }
 
     public String getKeyID() {

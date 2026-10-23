@@ -46,3 +46,8 @@ settings.json
 
 ### IntelliJ ###
 .idea/
+
+### App runtime data written next to the jar or project ###
+cache/
+screenshots-shared.json
+.update/

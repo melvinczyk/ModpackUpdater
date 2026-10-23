@@ -1,7 +1,9 @@
 package com.nicholasburczyk.packupdater.ui.dash;
 
+import com.nicholasburczyk.packupdater.config.ConfigManager;
 import com.nicholasburczyk.packupdater.model.ModpackInfo;
 import com.nicholasburczyk.packupdater.ui.Icons;
+import com.nicholasburczyk.packupdater.ui.Sounds;
 import com.nicholasburczyk.packupdater.ui.Theme;
 import com.nicholasburczyk.packupdater.ui.TransitionPane;
 import com.nicholasburczyk.packupdater.ui.Ui;
@@ -48,6 +50,7 @@ public final class Dashboard extends JPanel {
 
     public static final int GUTTER = 150;
     private static final int WHEEL_COOLDOWN_MS = 220;
+    private static final int DETAIL_DELAY_MS = 140;
 
     public interface Listener {
         void onChannel(String id);
@@ -67,28 +70,37 @@ public final class Dashboard extends JPanel {
      */
     public record TileSpec(String title, String subtitle, String chip, Color chipColor,
                            ModpackInfo server, ModpackInfo local, String pixel,
+                           Supplier<List<BufferedImage>> photos, Supplier<List<BufferedImage>> faces,
                            Supplier<JComponent> detail, Runnable primary) {
 
         public static TileSpec pack(String title, String subtitle, String chip, Color chipColor,
                                     ModpackInfo server, ModpackInfo local,
                                     Supplier<JComponent> detail, Runnable primary) {
-            return new TileSpec(title, subtitle, chip, chipColor, server, local, null, detail, primary);
+            return new TileSpec(title, subtitle, chip, chipColor, server, local, null, null, null, detail, primary);
         }
 
         public static TileSpec icon(String title, String subtitle, String chip, Color chipColor, String pixel,
                                     Supplier<JComponent> detail, Runnable primary) {
-            return new TileSpec(title, subtitle, chip, chipColor, null, null, pixel, detail, primary);
+            return new TileSpec(title, subtitle, chip, chipColor, null, null, pixel, null, null, detail, primary);
+        }
+
+        public static TileSpec photos(String title, String subtitle, String chip, Color chipColor, ModpackInfo pack,
+                                      Supplier<List<BufferedImage>> photos, Supplier<List<BufferedImage>> faces,
+                                      Supplier<JComponent> detail, Runnable primary) {
+            return new TileSpec(title, subtitle, chip, chipColor, pack, null, null, photos, faces, detail, primary);
         }
 
         boolean isPack() {
-            return server != null || local != null;
+            return photos == null && (server != null || local != null);
         }
     }
 
     private final Listener listener;
     private final ChannelMenu menu;
     private final TileStrip strip = new TileStrip(GUTTER);
-    private final JPanel detail = new JPanel(new BorderLayout());
+    private final JPanel detail = new DetailPlate();
+    private final KeyHints hints = new KeyHints();
+    private final javax.swing.Timer detailDelay = new javax.swing.Timer(DETAIL_DELAY_MS, e -> showDetail(strip.selected()));
     private final TransitionPane page = new TransitionPane();
     private final JPanel backSlot = new JPanel(new BorderLayout());
     private final CardLayout cards = new CardLayout();
@@ -98,7 +110,14 @@ public final class Dashboard extends JPanel {
     private final JButton adminLink;
     private BufferedImage backdrop;
     private BufferedImage vignette;
-    private final Aurora aurora = new Aurora(this::repaint);
+    private BufferedImage grain;
+    private java.awt.image.VolatileImage scene;
+    private boolean sceneDirty = true;
+    private boolean backdropLite;
+    private final Aurora aurora = new Aurora(() -> {
+        sceneDirty = true;
+        repaint();
+    });
     private java.awt.Window auroraWindow;
     private final List<TileSpec> specs = new ArrayList<>();
     private String channel = "";
@@ -111,11 +130,13 @@ public final class Dashboard extends JPanel {
         this.listener = listener;
         this.menu = new ChannelMenu(GUTTER, id -> {
             if (!id.equals(channel) || pageMode) {
+                Sounds.play(Sounds.Effect.CHANNEL);
                 listener.onChannel(id);
             }
         });
 
         adminLink = Ui.button("Admin", Icons.USER, Ui.ButtonStyle.GHOST, 24);
+        adminLink.setFocusable(false);
         adminLink.addActionListener(e -> onAdmin.run());
         setOpaque(true);
         setBackground(Theme.BG);
@@ -124,12 +145,15 @@ public final class Dashboard extends JPanel {
         add(buildCenter(), BorderLayout.CENTER);
         add(buildBottom(), BorderLayout.SOUTH);
 
+        detailDelay.setRepeats(false);
         strip.onSelect(index -> {
-            showDetail(index);
+            Sounds.play(Sounds.Effect.MOVE);
+            detailDelay.restart();
             listener.onTileSelected(channel, index);
         });
         strip.onActivate(index -> {
             if (index < specs.size() && specs.get(index).primary() != null) {
+                Sounds.play(Sounds.Effect.SELECT);
                 specs.get(index).primary().run();
             }
         });
@@ -168,7 +192,23 @@ public final class Dashboard extends JPanel {
         });
     }
 
-    /** Dark green-black backdrop (rendered once per size), the aurora, then a soft edge vignette. */
+    @Override
+    public void paint(Graphics g) {
+        java.awt.Rectangle clip = g.getClipBounds();
+        boolean whole = clip == null || clip.width >= getWidth() && clip.height >= getHeight();
+        long start = System.nanoTime();
+        super.paint(g);
+        if (whole) {
+            aurora.paintCost(System.nanoTime() - start);
+        }
+    }
+
+    /**
+     * Dark green-black backdrop and vignette (rendered once per size), with the aurora between them,
+     * composed into one image only when the aurora moves, so other animations just copy it. Without
+     * a graphics card the vignette and grain are baked into the backdrop and the aurora is drawn at
+     * half size.
+     */
     @Override
     protected void paintComponent(Graphics g) {
         int w = getWidth();
@@ -176,7 +216,37 @@ public final class Dashboard extends JPanel {
         if (w <= 0 || h <= 0) {
             return;
         }
-        if (backdrop == null || backdrop.getWidth() != w || backdrop.getHeight() != h) {
+        java.awt.GraphicsConfiguration gc = getGraphicsConfiguration();
+        if (gc == null) {
+            compose((Graphics2D) g, w, h, false);
+            return;
+        }
+        do {
+            if (scene == null || scene.getWidth() != w || scene.getHeight() != h
+                    || scene.validate(gc) == java.awt.image.VolatileImage.IMAGE_INCOMPATIBLE) {
+                scene = gc.createCompatibleVolatileImage(w, h);
+                sceneDirty = true;
+            } else if (scene.validate(gc) == java.awt.image.VolatileImage.IMAGE_RESTORED) {
+                sceneDirty = true;
+            }
+            boolean lite = !scene.getCapabilities().isAccelerated();
+            if (lite != aurora.isLite()) {
+                aurora.setLite(lite);
+                sceneDirty = true;
+            }
+            if (sceneDirty) {
+                sceneDirty = false;
+                Graphics2D s = scene.createGraphics();
+                compose(s, w, h, lite);
+                s.dispose();
+            }
+            g.drawImage(scene, 0, 0, null);
+        } while (scene.contentsLost());
+    }
+
+    private void compose(Graphics2D g, int w, int h, boolean lite) {
+        if (backdrop == null || backdrop.getWidth() != w || backdrop.getHeight() != h || backdropLite != lite) {
+            backdropLite = lite;
             backdrop = getGraphicsConfiguration() != null
                     ? getGraphicsConfiguration().createCompatibleImage(w, h)
                     : new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
@@ -189,25 +259,101 @@ public final class Dashboard extends JPanel {
             b.setPaint(new RadialGradientPaint(new Point2D.Float(w * 0.95f, h * 1.0f), Math.max(w, h) * 0.6f,
                     new float[]{0f, 1f}, new Color[]{new Color(20, 210, 130, 24), new Color(0, 0, 0, 0)}));
             b.fillRect(0, 0, w, h);
+            paintWeb(b, w, h);
+            if (lite) {
+                paintVignette(b, w, h);
+                paintGrain(b, w, h);
+            }
             b.dispose();
         }
         g.drawImage(backdrop, 0, 0, null);
-
         Graphics2D g2 = (Graphics2D) g.create();
         aurora.paint(g2, w, h, getGraphicsConfiguration());
-        if (vignette == null) {
+        if (!lite) {
+            paintVignette(g2, w, h);
+            paintGrain(g2, w, h);
+        }
+        g2.dispose();
+    }
+
+    private void paintVignette(Graphics2D g, int w, int h) {
+        if (vignette == null || vignette.getWidth() != w || vignette.getHeight() != h) {
             vignette = getGraphicsConfiguration() != null
-                    ? getGraphicsConfiguration().createCompatibleImage(320, 200, java.awt.Transparency.TRANSLUCENT)
-                    : new BufferedImage(320, 200, BufferedImage.TYPE_INT_ARGB);
+                    ? getGraphicsConfiguration().createCompatibleImage(w, h, java.awt.Transparency.TRANSLUCENT)
+                    : new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
             Graphics2D v = vignette.createGraphics();
+            v.scale(w / 320.0, h / 200.0);
             v.setPaint(new RadialGradientPaint(new Point2D.Float(134f, 90f), 240f,
                     new float[]{0.45f, 1f}, new Color[]{new Color(0, 0, 0, 0), new Color(0, 0, 0, 190)}));
             v.fillRect(0, 0, 320, 200);
             v.dispose();
         }
-        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-        g2.drawImage(vignette, 0, 0, w, h, null);
-        g2.dispose();
+        g.drawImage(vignette, 0, 0, null);
+    }
+
+    private void paintGrain(Graphics2D g, int w, int h) {
+        if (grain == null) {
+            grain = buildGrain();
+        }
+        g.setPaint(new java.awt.TexturePaint(grain, new java.awt.Rectangle(0, 0, grain.getWidth(), grain.getHeight())));
+        g.fillRect(0, 0, w, h);
+    }
+
+    private static void paintWeb(Graphics2D g, int w, int h) {
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        double cx = 72;
+        double cy = 80;
+        double far = Math.hypot(w, h);
+        int spokes = 44;
+        double[] rings = new double[18];
+        for (int k = 0; k < rings.length; k++) {
+            rings[k] = 34 * Math.pow(1.3, k);
+        }
+        g.setStroke(new java.awt.BasicStroke(1f));
+        for (int i = 0; i < spokes; i++) {
+            double a = Math.PI * 2 * i / spokes + 0.04 * Math.sin(i * 1.7);
+            double x = cx + Math.cos(a) * far;
+            double y = cy + Math.sin(a) * far;
+            g.setPaint(new java.awt.LinearGradientPaint((float) cx, (float) cy,
+                    (float) (cx + Math.cos(a) * far * 0.8), (float) (cy + Math.sin(a) * far * 0.8),
+                    new float[]{0f, 0.08f, 1f}, new Color[]{new Color(110, 230, 90, 0), new Color(110, 230, 90, 30),
+                            new Color(110, 230, 90, 0)}));
+            g.draw(new java.awt.geom.Line2D.Double(cx, cy, x, y));
+        }
+        for (double r : rings) {
+            if (r > far) {
+                break;
+            }
+            int alpha = (int) (26 * Math.pow(1 - r / far, 1.4) * Math.min(1, (r - 20) / 80));
+            g.setColor(new Color(110, 230, 90, Math.max(2, alpha)));
+            java.awt.geom.Path2D web = new java.awt.geom.Path2D.Double();
+            for (int i = 0; i <= spokes; i++) {
+                double a = Math.PI * 2 * (i % spokes) / spokes + 0.04 * Math.sin((i % spokes) * 1.7);
+                double sag = r * (0.94 + 0.06 * Math.cos(i * 0.9 + r * 0.01));
+                double x = cx + Math.cos(a) * sag;
+                double y = cy + Math.sin(a) * sag;
+                if (i == 0) {
+                    web.moveTo(x, y);
+                } else {
+                    double mid = Math.PI * 2 * (i - 0.5) / spokes;
+                    double inner = sag * 0.965;
+                    web.quadTo(cx + Math.cos(mid) * inner, cy + Math.sin(mid) * inner, x, y);
+                }
+            }
+            g.draw(web);
+        }
+    }
+
+    private static BufferedImage buildGrain() {
+        int size = 128;
+        BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        java.util.Random random = new java.util.Random(7);
+        int[] pixels = new int[size * size];
+        for (int i = 0; i < pixels.length; i++) {
+            pixels[i] = random.nextInt(4) << 24 | 0xFFFFFF;
+        }
+        image.getRaster().setDataElements(0, 0, size, size, pixels);
+        return image;
     }
 
     // ------------------------------------------------------------------ layout
@@ -219,8 +365,10 @@ public final class Dashboard extends JPanel {
 
         // Back button for full pages; same width as the gutter so the channel name stays aligned.
         JButton back = Ui.button("Back", null, Ui.ButtonStyle.GHOST);
+        back.putClientProperty(Sounds.SILENT, true);
         back.addActionListener(e -> {
             if (onBack != null) {
+                Sounds.play(Sounds.Effect.BACK);
                 onBack.run();
             }
         });
@@ -274,8 +422,29 @@ public final class Dashboard extends JPanel {
     private JComponent buildBottom() {
         JPanel bottom = new JPanel(new BorderLayout());
         bottom.setOpaque(false);
-        bottom.setBorder(Ui.pad(4, 54, 14, 22));
-        bottom.add(adminLink, BorderLayout.EAST);
+        bottom.setBorder(Ui.pad(4, GUTTER - 8, 14, 22));
+        bottom.add(hints, BorderLayout.WEST);
+        JPanel links = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
+        links.setOpaque(false);
+        boolean on = ConfigManager.getInstance().getConfig().getSound();
+        JButton sound = Ui.button(on ? "Sound on" : "Sound off", on ? Icons.SPEAKER_ON : Icons.SPEAKER_OFF,
+                Ui.ButtonStyle.GHOST);
+        sound.putClientProperty(Sounds.SILENT, true);
+        sound.setFocusable(false);
+        sound.addActionListener(e -> {
+            boolean next = !Sounds.isEnabled();
+            Sounds.setEnabled(next);
+            sound.setText(next ? "Sound on" : "Sound off");
+            Ui.setIcon(sound, next ? Icons.SPEAKER_ON : Icons.SPEAKER_OFF, Ui.ButtonStyle.GHOST);
+            ConfigManager.getInstance().getConfig().setSound(next);
+            ConfigManager.getInstance().saveConfig();
+            if (next) {
+                Sounds.play(Sounds.Effect.SELECT);
+            }
+        });
+        links.add(sound);
+        links.add(adminLink);
+        bottom.add(links, BorderLayout.EAST);
         return bottom;
     }
 
@@ -303,6 +472,7 @@ public final class Dashboard extends JPanel {
         aurora.setCalm(false);
         menu.setPreferredSize(new Dimension(600, 150));
         backSlot.setVisible(false);
+        hints.setVisible(true);
         cards.show(center, "tiles");
 
         specs.clear();
@@ -310,10 +480,12 @@ public final class Dashboard extends JPanel {
         List<TileStrip.Tile> rendered = new ArrayList<>();
         for (TileSpec spec : tiles) {
             TileStrip.Tile tile = new TileStrip.Tile(spec.title(), spec.subtitle(), spec.chip(),
-                    spec.chipColor(), spec.isPack(), spec.pixel());
+                    spec.chipColor(), spec.isPack(), spec.pixel(), spec.photos() != null);
             rendered.add(tile);
             if (spec.isPack()) {
                 loadArt(spec, tile);
+            } else if (spec.photos() != null) {
+                loadPhotos(spec, tile);
             }
         }
         strip.setTiles(rendered, selected, wasPage ? 1 : direction);
@@ -329,6 +501,7 @@ public final class Dashboard extends JPanel {
         aurora.setCalm(true);
         menu.setPreferredSize(new Dimension(600, 74));
         backSlot.setVisible(true);
+        hints.setVisible(false);
         revalidate();
         cards.show(center, "page");
         page.show(content);
@@ -361,6 +534,7 @@ public final class Dashboard extends JPanel {
     // ------------------------------------------------------------------ helpers
 
     private void showDetail(int index) {
+        detailDelay.stop();
         detail.removeAll();
         if (index >= 0 && index < specs.size() && specs.get(index).detail() != null) {
             JComponent content = specs.get(index).detail().get();
@@ -393,6 +567,31 @@ public final class Dashboard extends JPanel {
         }.execute();
     }
 
+    private void loadPhotos(TileSpec spec, TileStrip.Tile tile) {
+        new SwingWorker<List<BufferedImage>, Void>() {
+            private BufferedImage icon;
+            private List<BufferedImage> faces;
+
+            @Override
+            protected List<BufferedImage> doInBackground() {
+                icon = spec.server() == null ? null : PackArtwork.image(spec.server(), null);
+                faces = spec.faces() == null ? null : spec.faces().get();
+                return spec.photos().get();
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    tile.art = icon;
+                    tile.faces = faces;
+                    tile.photos = get();
+                    strip.artLoaded(tile);
+                } catch (Exception ignored) {
+                }
+            }
+        }.execute();
+    }
+
     private void wheelTiles(MouseWheelEvent e) {
         if (pageMode || !cooledDown()) {
             return;
@@ -419,6 +618,7 @@ public final class Dashboard extends JPanel {
     private void moveChannel(int delta) {
         int next = menu.activeIndex() + delta;
         if (next >= 0 && next < menu.itemCount()) {
+            Sounds.play(Sounds.Effect.CHANNEL);
             listener.onChannel(menu.idAt(next));
         }
     }
@@ -431,6 +631,7 @@ public final class Dashboard extends JPanel {
         bind(KeyEvent.VK_ENTER, "tile-activate", () -> {
             int index = strip.selected();
             if (index < specs.size() && specs.get(index).primary() != null) {
+                Sounds.play(Sounds.Effect.SELECT);
                 specs.get(index).primary().run();
             }
         });
@@ -448,6 +649,147 @@ public final class Dashboard extends JPanel {
                 action.run();
             }
         });
+    }
+
+    private static BufferedImage layer(Component owner, int w, int h) {
+        java.awt.GraphicsConfiguration gc = owner.getGraphicsConfiguration();
+        return gc != null ? gc.createCompatibleImage(w, h, java.awt.Transparency.TRANSLUCENT)
+                : new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+    }
+
+    private static final class DetailPlate extends JPanel {
+        private BufferedImage cache;
+        private java.awt.Rectangle cached;
+
+        DetailPlate() {
+            super(new BorderLayout());
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            if (getComponentCount() == 0 || getWidth() <= 0 || getHeight() <= 0) {
+                return;
+            }
+            Component content = getComponent(0);
+            int height = Math.max(1, bottom(content, 0) - content.getY());
+            java.awt.Rectangle plate = new java.awt.Rectangle(content.getX() - 24, content.getY() - 6,
+                    content.getWidth() + 40, height + 20);
+            if (cache == null || !plate.equals(cached)) {
+                cached = plate;
+                cache = layer(this, plate.width + 4, plate.height + 4);
+                Graphics2D g2 = cache.createGraphics();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                paintPlate(g2, 2, 2, plate.width, plate.height);
+                g2.dispose();
+            }
+            g.drawImage(cache, plate.x - 2, plate.y - 2, null);
+        }
+
+        private static int bottom(Component component, int offset) {
+            int top = offset + component.getY();
+            if (component instanceof java.awt.Container box && box.getComponentCount() > 0) {
+                int lowest = top;
+                for (Component child : box.getComponents()) {
+                    if (child.isVisible()) {
+                        lowest = Math.max(lowest, bottom(child, top));
+                    }
+                }
+                return lowest;
+            }
+            return top + Math.min(component.getHeight(), component.getPreferredSize().height);
+        }
+
+        private static void paintPlate(Graphics2D g2, double x, double y, double w, double h) {
+            java.awt.geom.Path2D plate = TileStrip.plate(x, y, w, h, 16, 5);
+            g2.setPaint(new java.awt.GradientPaint(0f, (float) y, new Color(14, 40, 20, 150), 0f, (float) (y + h),
+                    new Color(4, 14, 7, 120)));
+            g2.fill(plate);
+            g2.setStroke(new java.awt.BasicStroke(1.2f));
+            g2.setPaint(new java.awt.GradientPaint((float) x, (float) y, new Color(120, 220, 100, 120),
+                    (float) (x + w * 0.5), (float) (y + h), new Color(40, 100, 50, 60)));
+            g2.draw(plate);
+            g2.setPaint(new java.awt.GradientPaint((float) x, 0f, new Color(200, 255, 160, 110), (float) (x + w * 0.4), 0f,
+                    new Color(200, 255, 160, 0)));
+            g2.fill(new java.awt.geom.Rectangle2D.Double(x + 16, y + 1, w * 0.4, 1.2));
+            g2.setColor(new Color(170, 255, 120, 170));
+            g2.setStroke(new java.awt.BasicStroke(2f, java.awt.BasicStroke.CAP_ROUND, java.awt.BasicStroke.JOIN_ROUND));
+            g2.draw(new java.awt.geom.Line2D.Double(x + 2, y + 16 - 3, x + 16 - 3, y + 2));
+        }
+    }
+
+    private static final class KeyHints extends JComponent {
+        private static final String[][] HINTS = {{"", "Browse"}, {"", "Channels"}, {"Enter", "Open"}};
+        private BufferedImage cache;
+
+        KeyHints() {
+            setPreferredSize(new Dimension(420, 30));
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            if (getWidth() <= 0 || getHeight() <= 0) {
+                return;
+            }
+            if (cache == null || cache.getWidth() != getWidth() || cache.getHeight() != getHeight()) {
+                cache = layer(this, getWidth(), getHeight());
+                Graphics2D g2 = cache.createGraphics();
+                paintHints(g2, getHeight());
+                g2.dispose();
+            }
+            g.drawImage(cache, 0, 0, null);
+        }
+
+        private static void paintHints(Graphics2D g2, int height) {
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            Font keyFont = Theme.font(Font.BOLD, 11);
+            Font labelFont = Theme.font(Font.PLAIN, 12);
+            double x = 8;
+            double cy = height / 2.0;
+            for (int index = 0; index < HINTS.length; index++) {
+                String[] hint = HINTS[index];
+                g2.setFont(keyFont);
+                java.awt.FontMetrics fm = g2.getFontMetrics();
+                double kw = hint[0].isEmpty() ? 34 : Math.max(26, fm.stringWidth(hint[0]) + 16);
+                double kh = 20;
+                java.awt.geom.RoundRectangle2D cap = new java.awt.geom.RoundRectangle2D.Double(x, cy - kh / 2, kw, kh, kh, kh);
+                g2.setPaint(new java.awt.GradientPaint(0f, (float) (cy - kh / 2), new Color(0x2A6A2C), 0f,
+                        (float) (cy + kh / 2), new Color(0x0A2410)));
+                g2.fill(cap);
+                g2.setColor(new Color(150, 240, 120, 150));
+                g2.draw(cap);
+                g2.setPaint(new java.awt.GradientPaint(0f, (float) (cy - kh / 2), new Color(255, 255, 255, 70), 0f,
+                        (float) cy, new Color(255, 255, 255, 0)));
+                g2.fill(new java.awt.geom.RoundRectangle2D.Double(x + 3, cy - kh / 2 + 1.5, kw - 6, kh / 2 - 1, kh / 2, kh / 2));
+                g2.setColor(new Color(0xE6FFD8));
+                if (hint[0].isEmpty()) {
+                    double mid = x + kw / 2;
+                    boolean horizontal = index == 0;
+                    g2.fill(arrow(mid - 6, cy, horizontal ? Math.PI : -Math.PI / 2));
+                    g2.fill(arrow(mid + 6, cy, horizontal ? 0 : Math.PI / 2));
+                } else {
+                    g2.drawString(hint[0], (float) (x + (kw - fm.stringWidth(hint[0])) / 2),
+                            (float) (cy + (fm.getAscent() - fm.getDescent()) / 2.0));
+                }
+                x += kw + 7;
+                g2.setFont(labelFont);
+                fm = g2.getFontMetrics();
+                g2.setColor(Theme.TEXT_FAINT);
+                g2.drawString(hint[1], (float) x, (float) (cy + (fm.getAscent() - fm.getDescent()) / 2.0));
+                x += fm.stringWidth(hint[1]) + 22;
+            }
+        }
+
+        private static java.awt.Shape arrow(double cx, double cy, double angle) {
+            java.awt.geom.Path2D path = new java.awt.geom.Path2D.Double();
+            path.moveTo(4, 0);
+            path.lineTo(-3, -4);
+            path.lineTo(-3, 4);
+            path.closePath();
+            java.awt.geom.AffineTransform at = java.awt.geom.AffineTransform.getTranslateInstance(cx, cy);
+            at.rotate(angle);
+            return at.createTransformedShape(path);
+        }
     }
 
     /** Glossy bead in the corner: green when online, amber while checking, red when offline. */

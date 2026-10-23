@@ -1,6 +1,5 @@
 package com.nicholasburczyk.packupdater.ui;
 
-import javax.swing.Timer;
 import java.util.function.DoubleConsumer;
 
 public final class Animator {
@@ -24,8 +23,8 @@ public final class Animator {
 
     public static Handle tween(int durationMillis, int delayMillis, DoubleConsumer onFrame, Runnable onDone) {
         long start = System.nanoTime() + delayMillis * 1_000_000L;
-        Timer timer = new Timer(FRAME_MILLIS, null);
-        timer.addActionListener(event -> {
+        FrameClock[] holder = new FrameClock[1];
+        FrameClock timer = new FrameClock(FRAME_MILLIS, () -> {
             long now = System.nanoTime();
             if (now < start) {
                 return;
@@ -34,13 +33,13 @@ public final class Animator {
             double raw = durationMillis <= 0 ? 1 : Math.min(1, elapsed / durationMillis);
             onFrame.accept(easeOutCubic(raw));
             if (raw >= 1) {
-                timer.stop();
+                holder[0].stop();
                 if (onDone != null) {
                     onDone.run();
                 }
             }
         });
-        timer.setInitialDelay(delayMillis);
+        holder[0] = timer;
         timer.start();
         onFrame.accept(0);
         return timer::stop;

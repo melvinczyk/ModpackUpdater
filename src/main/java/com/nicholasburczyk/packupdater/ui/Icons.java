@@ -56,6 +56,12 @@ public final class Icons {
     public static final String SAVE = "save";
     public static final String CHAT = "chat";
     public static final String TARGET = "target";
+    public static final String PLAY = "play";
+    public static final String FOCUS = "focus";
+    public static final String SKIP_BACK = "skip-back";
+    public static final String SKIP_NEXT = "skip-next";
+    public static final String SPEAKER_ON = "speaker-on";
+    public static final String SPEAKER_OFF = "speaker-off";
 
     private static final String PATH = "com/nicholasburczyk/packupdater/icons/";
     private static final String SPRITES = "/com/nicholasburczyk/packupdater/pixel/green-sprites.png";
@@ -80,6 +86,10 @@ public final class Icons {
             Map.entry(DOWN, new int[]{2, 7}), Map.entry(DOWNLOAD, new int[]{2, 7}),
             Map.entry(CHEVRON_DOWN, new int[]{2, 7}), Map.entry(MAGIC, new int[]{2, 7}),
             Map.entry(HOME, new int[]{2, 9}),
+            Map.entry(FOCUS, new int[]{1, 5}),
+            Map.entry(PLAY, new int[]{3, 1}),
+            Map.entry(SKIP_BACK, new int[]{3, 5}), Map.entry(SKIP_NEXT, new int[]{3, 7}),
+            Map.entry(SPEAKER_OFF, new int[]{4, 0}), Map.entry(SPEAKER_ON, new int[]{4, 2}),
             Map.entry(CHAT, new int[]{3, 9}), Map.entry(HELP, new int[]{3, 9}), Map.entry(INFO, new int[]{3, 9}),
             Map.entry(LIST, new int[]{4, 4}),
             Map.entry(WIFI, new int[]{4, 8}), Map.entry(CLOUD, new int[]{4, 8})
@@ -177,13 +187,26 @@ public final class Icons {
     private static final class PixelIcon implements Icon {
 
         private final BufferedImage image;
+        private final BufferedImage shadow;
         private final int size;
         private final boolean faded;
 
         PixelIcon(BufferedImage image, int size, boolean faded) {
             this.image = image;
+            this.shadow = silhouette(image);
             this.size = size;
             this.faded = faded;
+        }
+
+        private static BufferedImage silhouette(BufferedImage source) {
+            BufferedImage out = new BufferedImage(source.getWidth(), source.getHeight(), BufferedImage.TYPE_INT_ARGB);
+            for (int y = 0; y < source.getHeight(); y++) {
+                for (int x = 0; x < source.getWidth(); x++) {
+                    int alpha = source.getRGB(x, y) >>> 24;
+                    out.setRGB(x, y, (alpha * 170 / 255) << 24 | 0x041A08);
+                }
+            }
+            return out;
         }
 
         @Override
@@ -193,6 +216,8 @@ public final class Icons {
             if (faded) {
                 g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.35f));
             }
+            int offset = Math.max(1, size / 16);
+            g2.drawImage(shadow, x + offset, y + offset, size, size, null);
             g2.drawImage(image, x, y, size, size, null);
             g2.dispose();
         }
