@@ -16,13 +16,16 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -56,7 +59,11 @@ public final class ModpackSync {
                 return report;
             }
             progress.step(index++, remote.size());
-            Path localFile = localRoot.resolve(file.relativePath());
+            Path localFile = inside(localRoot, file.relativePath());
+            if (localFile == null) {
+                report.addFailure("Skipped an unsafe path from the server: " + file.relativePath());
+                continue;
+            }
             if (!Files.isRegularFile(localFile)) {
                 report.add(SyncReport.Kind.MISSING, file.relativePath(), file.size());
                 continue;
@@ -67,11 +74,16 @@ public final class ModpackSync {
         }
 
         progress.message("Looking for unexpected files");
+        Map<String, String> remoteByLowerCase = new HashMap<>();
+        for (String key : remote.keySet()) {
+            remoteByLowerCase.put(key.toLowerCase(Locale.ROOT), key);
+        }
         for (String relativePath : listTrackedLocalFiles(localRoot, deletableTargets(server), ignore)) {
             if (progress.isCancelled()) {
                 return report;
             }
-            if (!remote.containsKey(relativePath)) {
+            if (!remote.containsKey(relativePath)
+                    && !isSameFileAs(localRoot, relativePath, remoteByLowerCase.get(relativePath.toLowerCase(Locale.ROOT)))) {
                 long size;
                 try {
                     size = Files.size(localRoot.resolve(relativePath));
@@ -107,8 +119,13 @@ public final class ModpackSync {
             }
             progress.message("Downloading " + item.path());
             progress.step(done++, total);
+            Path destination = inside(localRoot, item.path());
+            if (destination == null) {
+                report.addFailure("Skipped an unsafe path from the server: " + item.path());
+                continue;
+            }
             try {
-                download(client, bucket, serverRoot + "/" + item.path(), localRoot.resolve(item.path()));
+                download(client, bucket, serverRoot + "/" + item.path(), destination);
             } catch (Exception e) {
                 report.addFailure("Could not download " + item.path() + ": " + rootMessage(e));
             }
@@ -120,8 +137,13 @@ public final class ModpackSync {
             }
             progress.message("Removing " + item.path());
             progress.step(done++, total);
+            Path target = inside(localRoot, item.path());
+            if (target == null) {
+                report.addFailure("Refused to delete outside the instance: " + item.path());
+                continue;
+            }
             try {
-                Files.deleteIfExists(localRoot.resolve(item.path()));
+                Files.deleteIfExists(target);
             } catch (IOException e) {
                 report.addFailure("Could not remove " + item.path() + ": " + rootMessage(e));
             }
@@ -257,7 +279,7 @@ public final class ModpackSync {
                     continue;
                 }
                 String relativePath = key.substring(rootPrefix.length());
-                if (ignore.ignoresPath(relativePath)) {
+                if (ignore.ignoresPath(relativePath) || !isSafeRelative(relativePath)) {
                     continue;
                 }
                 files.put(relativePath, new RemoteFile(key, relativePath, object.eTag(), object.size()));
@@ -292,8 +314,8 @@ public final class ModpackSync {
             if (isUnusableTarget(folder)) {
                 continue;
             }
-            Path folderPath = localRoot.resolve(folder);
-            if (!Files.isDirectory(folderPath)) {
+            Path folderPath = inside(localRoot, folder);
+            if (folderPath == null || !Files.isDirectory(folderPath)) {
                 continue;
             }
             try (Stream<Path> walk = Files.walk(folderPath)) {
@@ -311,7 +333,52 @@ public final class ModpackSync {
     }
 
     private static boolean isUnusableTarget(String target) {
-        return target == null || target.isBlank() || target.contains("(missing locally)");
+        return target == null || target.isBlank() || target.contains("(missing locally)") || !isSafeRelative(target);
+    }
+
+    /**
+     * True for a plain relative path such as {@code mods} or {@code config/a.toml}: not absolute,
+     * not the instance root itself and never stepping out of it with {@code ..}. Server-supplied
+     * folders and keys pass through here before they touch the disk, so a bad manifest can't make
+     * a sync walk or delete outside the tracked folders.
+     */
+    static boolean isSafeRelative(String relative) {
+        if (relative == null || relative.isBlank()) {
+            return false;
+        }
+        try {
+            Path path = Path.of(relative).normalize();
+            String text = path.toString();
+            return !path.isAbsolute() && !text.isEmpty() && !text.equals(".") && !path.startsWith("..")
+                    && !relative.startsWith("/") && !relative.startsWith("\\");
+        } catch (InvalidPathException e) {
+            return false;
+        }
+    }
+
+    /** Resolves a server-supplied path inside {@code root}, or null when it would land outside it. */
+    public static Path inside(Path root, String relative) {
+        if (!isSafeRelative(relative)) {
+            return null;
+        }
+        Path base = root.toAbsolutePath().normalize();
+        Path target = base.resolve(relative).normalize();
+        return target.startsWith(base) && !target.equals(base) ? target : null;
+    }
+
+    /**
+     * On case-insensitive disks (Windows, macOS) {@code mods/Foo.jar} and the server's
+     * {@code mods/foo.jar} are the same file; it must not be reported as extra and deleted.
+     */
+    private static boolean isSameFileAs(Path localRoot, String localPath, String remotePath) {
+        if (remotePath == null) {
+            return false;
+        }
+        try {
+            return Files.isSameFile(localRoot.resolve(localPath), localRoot.resolve(remotePath));
+        } catch (IOException e) {
+            return false;
+        }
     }
 
     private static void download(S3Client client, String bucket, String key, Path destination) throws IOException {

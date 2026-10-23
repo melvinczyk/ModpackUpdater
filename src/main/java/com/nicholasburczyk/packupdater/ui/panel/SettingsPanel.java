@@ -43,8 +43,7 @@ public final class SettingsPanel extends JPanel {
     public SettingsPanel(MainFrame frame) {
         this.frame = frame;
         setLayout(new BorderLayout());
-        setOpaque(true);
-        setBackground(Theme.BG);
+        setOpaque(false);
 
         JPanel content = Ui.column();
         content.setBorder(Ui.pad(Theme.GAP_XL, Theme.GAP_XL, Theme.GAP_XL, Theme.GAP_XL));

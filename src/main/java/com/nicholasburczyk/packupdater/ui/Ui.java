@@ -25,6 +25,7 @@ import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
+import java.awt.Shape;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.geom.Ellipse2D;
@@ -32,19 +33,30 @@ import java.awt.geom.RoundRectangle2D;
 
 public final class Ui {
 
+    /** Gloss palettes: top, mid (just above the gloss split), split, bottom, rim, glow, text. */
     public enum ButtonStyle {
-        PRIMARY(Theme.ACCENT, Theme.ON_ACCENT),
-        SECONDARY(Theme.SURFACE_ALT, Theme.TEXT),
-        SUCCESS(Theme.SUCCESS, new Color(0x062611)),
-        DANGER(Theme.DANGER, Color.WHITE),
-        GHOST(null, Theme.TEXT_DIM);
+        PRIMARY(0x6BE33A, 0x2AA316, 0x127A09, 0x33C41A, 0xBEFF96, 0x5AFF28, 0xFFFFFF),
+        SECONDARY(0x2C3A31, 0x18221B, 0x0B110D, 0x172019, 0x4F7A57, 0x78FF50, 0xD9EFDC),
+        SUCCESS(0x6BE33A, 0x2AA316, 0x127A09, 0x33C41A, 0xBEFF96, 0x5AFF28, 0xFFFFFF),
+        DANGER(0xFF7A6B, 0xD9281C, 0xA3130C, 0xF0453A, 0xFFD0C9, 0xFF4632, 0xFFFFFF),
+        GHOST(0, 0, 0, 0, 0, 0x78FF50, 0xA3BCA8);
 
-        final Color background;
+        final Color top;
+        final Color mid;
+        final Color split;
+        final Color bottom;
+        final Color rim;
+        final Color glow;
         final Color foreground;
 
-        ButtonStyle(Color background, Color foreground) {
-            this.background = background;
-            this.foreground = foreground;
+        ButtonStyle(int top, int mid, int split, int bottom, int rim, int glow, int foreground) {
+            this.top = new Color(top);
+            this.mid = new Color(mid);
+            this.split = new Color(split);
+            this.bottom = new Color(bottom);
+            this.rim = new Color(rim);
+            this.glow = new Color(glow);
+            this.foreground = new Color(foreground);
         }
     }
 
@@ -141,28 +153,14 @@ public final class Ui {
     }
 
     public static JButton button(String text, String iconName, ButtonStyle style) {
-        JButton button = new JButton(text);
-        button.setFont(Theme.font(Font.BOLD, 12));
-        button.setFocusPainted(false);
-        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        button.setIconTextGap(Theme.GAP_S);
-        button.setForeground(style.foreground);
-        button.putClientProperty(FlatClientProperties.BUTTON_TYPE,
-                FlatClientProperties.BUTTON_TYPE_ROUND_RECT);
-        button.setBorder(BorderFactory.createEmptyBorder(8, 14, 8, 14));
-        if (iconName != null) {
-            button.setIcon(Icons.of(iconName, 15, style.foreground));
-            button.setDisabledIcon(Icons.of(iconName, 15, Theme.TEXT_FAINT));
-        }
+        return button(text, iconName, style, 16);
+    }
 
-        if (style == ButtonStyle.GHOST) {
-            button.setContentAreaFilled(false);
-            button.setOpaque(false);
-            hoverColor(button, Theme.TEXT_DIM, Theme.TEXT, button::setForeground);
-        } else {
-            Color base = style.background;
-            button.setBackground(base);
-            hoverColor(button, base, Theme.mix(base, Color.WHITE, 0.14), button::setBackground);
+    public static JButton button(String text, String iconName, ButtonStyle style, int iconSize) {
+        GlossButton button = new GlossButton(text, style);
+        if (iconName != null) {
+            button.setIcon(Icons.of(iconName, iconSize, style.foreground));
+            button.setDisabledIcon(Icons.of(iconName, iconSize, Theme.TEXT_FAINT));
         }
         return button;
     }
@@ -196,33 +194,6 @@ public final class Ui {
         return button;
     }
 
-    private static void hoverColor(JComponent target, Color from, Color to,
-                                   java.util.function.Consumer<Color> apply) {
-        target.addMouseListener(new MouseAdapter() {
-            private Animator.Handle handle;
-
-            @Override
-            public void mouseEntered(MouseEvent e) {
-                if (target.isEnabled()) {
-                    animate(to);
-                }
-            }
-
-            @Override
-            public void mouseExited(MouseEvent e) {
-                animate(from);
-            }
-
-            private void animate(Color target2) {
-                if (handle != null) {
-                    handle.stop();
-                }
-                Color start = target2 == to ? from : to;
-                handle = Animator.tween(Animator.FAST, progress ->
-                        apply.accept(Theme.mix(start, target2, progress)));
-            }
-        });
-    }
 
     public static JComponent chip(String text, Color color) {
         JLabel label = new JLabel(text);
@@ -362,6 +333,135 @@ public final class Ui {
         return String.format("%.2f GB", bytes / (1024.0 * 1024 * 1024));
     }
 
+    /**
+     * Frutiger-style glossy button: rounded body with a hard gloss split, a white specular cap,
+     * a bright rim, a soft glow that fades in on hover and a small squish while pressed.
+     */
+    public static final class GlossButton extends JButton {
+
+        private static final int INSET = 3;
+
+        private final ButtonStyle style;
+        private float hover;
+        private float press;
+        private Animator.Handle hoverAnim;
+        private Animator.Handle pressAnim;
+
+        GlossButton(String text, ButtonStyle style) {
+            super(text);
+            this.style = style;
+            setFont(Theme.font(Font.BOLD, 12));
+            setForeground(style.foreground);
+            setFocusPainted(false);
+            setContentAreaFilled(false);
+            setBorderPainted(false);
+            setOpaque(false);
+            setRolloverEnabled(true);
+            setCursor(new Cursor(Cursor.HAND_CURSOR));
+            setIconTextGap(Theme.GAP_S);
+            setBorder(BorderFactory.createEmptyBorder(8 + INSET, 14 + INSET, 8 + INSET, 14 + INSET));
+            putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_BORDERLESS);
+
+            addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseEntered(MouseEvent e) {
+                    if (isEnabled()) {
+                        hoverAnim = animate(hoverAnim, hover, 1f, Animator.NORMAL, v -> hover = v);
+                    }
+                }
+
+                @Override
+                public void mouseExited(MouseEvent e) {
+                    hoverAnim = animate(hoverAnim, hover, 0f, Animator.SLOW, v -> hover = v);
+                }
+            });
+            getModel().addChangeListener(e -> {
+                float target = getModel().isPressed() && getModel().isArmed() ? 1f : 0f;
+                if ((target == 1f) != (press > 0.5f)) {
+                    pressAnim = animate(pressAnim, press, target, target == 1f ? 70 : Animator.NORMAL, v -> press = v);
+                }
+            });
+        }
+
+        private Animator.Handle animate(Animator.Handle running, float from, float to, int millis,
+                                        java.util.function.Consumer<Float> apply) {
+            if (running != null) {
+                running.stop();
+            }
+            return Animator.tween(millis, 0, p -> {
+                apply.accept((float) Animator.lerp(from, to, p));
+                repaint();
+            }, null);
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            int w = getWidth();
+            int h = getHeight();
+            double scale = 1 - 0.05 * press;
+            g2.translate(w / 2.0, h / 2.0);
+            g2.scale(scale, scale);
+            g2.translate(-w / 2.0, -h / 2.0);
+
+            boolean enabled = isEnabled();
+            if (!enabled) {
+                g2.setComposite(java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, 0.45f));
+            }
+            double x = INSET;
+            double y = INSET;
+            double bw = w - INSET * 2.0;
+            double bh = h - INSET * 2.0;
+            double arc = Math.min(bh, 20);
+
+            if (style == ButtonStyle.GHOST) {
+                if (hover > 0.01f) {
+                    g2.setColor(Theme.alpha(style.glow, Math.round(26 * hover)));
+                    g2.fill(new RoundRectangle2D.Double(x, y, bw, bh, arc, arc));
+                }
+                setForeground(Theme.mix(style.foreground, Theme.TEXT, hover));
+                g2.dispose();
+                super.paintComponent(g);
+                return;
+            }
+
+            if (enabled && hover > 0.01f) {
+                for (int i = INSET; i >= 1; i--) {
+                    g2.setColor(Theme.alpha(style.glow, Math.round(34 * hover / i)));
+                    g2.fill(new RoundRectangle2D.Double(x - i, y - i, bw + i * 2, bh + i * 2, arc + i * 2, arc + i * 2));
+                }
+            }
+
+            RoundRectangle2D body = new RoundRectangle2D.Double(x, y, bw, bh, arc, arc);
+            float lift = enabled ? 0.12f * hover : 0f;
+            g2.setPaint(new java.awt.LinearGradientPaint(0f, (float) y, 0f, (float) (y + bh),
+                    new float[]{0f, 0.49f, 0.5f, 1f},
+                    new Color[]{Theme.mix(style.top, Color.WHITE, lift), Theme.mix(style.mid, Color.WHITE, lift),
+                            style.split, Theme.mix(style.bottom, Color.WHITE, lift)}));
+            g2.fill(body);
+
+            Shape old = g2.getClip();
+            g2.clip(body);
+            g2.setPaint(new java.awt.GradientPaint(0f, (float) y, new Color(255, 255, 255, 105),
+                    0f, (float) (y + bh * 0.5), new Color(255, 255, 255, 12)));
+            g2.fill(new RoundRectangle2D.Double(x + 1, y + 1, bw - 2, bh * 0.5, arc - 2, arc - 2));
+            g2.setClip(old);
+
+            g2.setColor(Theme.alpha(style.rim, 150 + Math.round(60 * hover)));
+            g2.setStroke(new java.awt.BasicStroke(1f));
+            g2.draw(new RoundRectangle2D.Double(x + 0.5, y + 0.5, bw - 1, bh - 1, arc, arc));
+            g2.dispose();
+
+            Graphics2D text = (Graphics2D) g.create();
+            text.translate(w / 2.0, h / 2.0);
+            text.scale(scale, scale);
+            text.translate(-w / 2.0, -h / 2.0);
+            super.paintComponent(text);
+            text.dispose();
+        }
+    }
+
     public static class RoundPanel extends JPanel {
 
         private Color fill;
@@ -397,12 +497,26 @@ public final class Ui {
             int arc = Math.min(radius * 2, Math.min(getWidth(), getHeight()));
             RoundRectangle2D shape = new RoundRectangle2D.Double(
                     0.5, 0.5, getWidth() - 1.0, getHeight() - 1.0, arc, arc);
-            if (fill != null) {
+            boolean glass = fill != null && fill.getAlpha() == 255;
+            if (glass) {
+                // Translucent glass over the aurora: lit from above, darker at the base.
+                g2.setPaint(new java.awt.GradientPaint(0f, 0f, Theme.alpha(Theme.mix(fill, Theme.LIME, 0.07), 205),
+                        0f, getHeight(), Theme.alpha(fill, 228)));
+                g2.fill(shape);
+                g2.setPaint(new java.awt.GradientPaint(0f, 0f, new Color(255, 255, 255, 20),
+                        0f, Math.min(getHeight(), 90), new Color(255, 255, 255, 0)));
+                g2.fill(shape);
+            } else if (fill != null) {
                 g2.setColor(fill);
                 g2.fill(shape);
             }
             if (line != null) {
-                g2.setColor(line);
+                if (glass) {
+                    g2.setPaint(new java.awt.GradientPaint(0f, 0f, Theme.alpha(Theme.LIME, 70),
+                            0f, getHeight(), Theme.alpha(line, 160)));
+                } else {
+                    g2.setColor(line);
+                }
                 g2.draw(shape);
             }
             g2.dispose();

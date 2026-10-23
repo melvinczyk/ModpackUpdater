@@ -24,11 +24,11 @@ Click Add modpack, pick a pack, then either:
 - **Set up for me** creates the CurseForge profile and downloads everything.
 - **Use my folder** points at a profile you already made.
 
-## Update and Re-check
+## Update and Repair
 
-**Update** appears when the server has a newer version.
+**Update** appears on a pack when the server has a newer version.
 
-**Re-check** compares every tracked file against the server and repairs anything that drifted. It downloads what is missing, replaces what differs, and deletes files added inside tracked folders. Anything outside the tracked folders is left alone.
+**Repair** compares every tracked file against the server and repairs anything that drifted. It downloads what is missing, replaces what differs, and deletes files added inside tracked folders. Saves, screenshots and resource packs are left alone.
 
 Both show the full list and wait for confirmation.
 
@@ -36,7 +36,7 @@ Both show the full list and wait for confirmation.
 
 - **Compare** a local and server pack, tick the changes, set a higher version, add a changelog line, then **Publish**.
 - **New modpack** uploads a local instance as a new server pack.
-- **Set template** publishes the profile so players can use Set up for me.
+- **Player template** publishes the profile so players can use Set up for me.
 - **Tracked content** picks which folders and files are synced.
 
 ## Build
@@ -45,4 +45,4 @@ Both show the full list and wait for confirmation.
 ./gradlew createLaunchers
 ```
 
-Zips land in `build/launchers/`. For in-app updates, attach `PackUpdater.jar` to a release tagged `v<version>`.
+Zips land in `build/launchers/`. The app updates itself on startup: attach `PackUpdater.jar` to a release tagged `v<version>`.
