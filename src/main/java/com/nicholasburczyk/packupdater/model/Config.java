@@ -16,6 +16,7 @@ public class Config {
     private String bucketName = "GroidPack";
     private String[] ignoredFiles = {".DS_Store", ".bzEmpty"};
     private String[] customIconModpacks = new String[0];
+    private String minecraftServer = "";
 
     public String getCurseforge_path() {
         return curseforge_path;
@@ -95,6 +96,14 @@ public class Config {
 
     public void setCustomIconModpacks(String[] customIconModpacks) {
         this.customIconModpacks = customIconModpacks == null ? new String[0] : customIconModpacks;
+    }
+
+    public String getMinecraftServer() {
+        return minecraftServer;
+    }
+
+    public void setMinecraftServer(String minecraftServer) {
+        this.minecraftServer = minecraftServer == null ? "" : minecraftServer;
     }
 
     @JsonIgnore

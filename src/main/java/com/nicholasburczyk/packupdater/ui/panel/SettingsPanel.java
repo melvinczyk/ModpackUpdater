@@ -37,6 +37,7 @@ public final class SettingsPanel extends JPanel {
     private final JTextField keyIdField = Ui.field("From your admin");
     private final JPasswordField appKeyField = Ui.passwordField("From your admin");
     private final JTextField bucketField = Ui.field("Bucket name");
+    private final JTextField minecraftField = Ui.field("host:port");
     private final JLabel pathStatus = Ui.faint(" ");
     private final JLabel saveStatus = Ui.faint(" ");
 
@@ -117,6 +118,8 @@ public final class SettingsPanel extends JPanel {
         card.add(labelled("Application key", appKeyField));
         card.add(Ui.strut(Theme.GAP_S));
         card.add(reveal);
+        card.add(Ui.strut(Theme.GAP_M));
+        card.add(labelled("Minecraft server", minecraftField));
         return card;
     }
 
@@ -168,6 +171,7 @@ public final class SettingsPanel extends JPanel {
         keyIdField.setText(orEmpty(config.getKeyID()));
         appKeyField.setText(orEmpty(config.getAppKey()));
         bucketField.setText(orEmpty(config.getBucketName()));
+        minecraftField.setText(orEmpty(config.getMinecraftServer()));
         saveStatus.setText(" ");
         validatePath();
     }
@@ -212,8 +216,10 @@ public final class SettingsPanel extends JPanel {
         config.setKeyID(keyIdField.getText().trim());
         config.setAppKey(new String(appKeyField.getPassword()).trim());
         config.setBucketName(bucketField.getText().trim());
+        config.setMinecraftServer(minecraftField.getText().trim());
         ConfigManager.getInstance().saveConfig();
         B2ClientProvider.reconnectToClient();
+        frame.checkMinecraft();
         saveStatus.setText("Saved");
         saveStatus.setForeground(Theme.SUCCESS);
     }

@@ -14,6 +14,7 @@ import com.nicholasburczyk.packupdater.model.Config;
 import com.nicholasburczyk.packupdater.model.ModpackInfo;
 import com.nicholasburczyk.packupdater.server.B2ClientProvider;
 import com.nicholasburczyk.packupdater.server.ConnectionStatus;
+import com.nicholasburczyk.packupdater.server.MinecraftServerStatus;
 import com.nicholasburczyk.packupdater.server.ModpackRegistry;
 import com.nicholasburczyk.packupdater.ui.component.PackArtwork;
 import com.nicholasburczyk.packupdater.ui.component.ScreenshotGallery;
@@ -62,6 +63,7 @@ public final class MainFrame extends JFrame implements Dashboard.Listener {
     private static final String ADMIN = "admin";
     private static final String GALLERY = "gallery";
     private static final int CURSEFORGE_MINECRAFT = 432;
+    private static final int MINECRAFT_POLL_MS = 60_000;
 
     private enum State { LOADING, NOT_READY, OFFLINE, READY }
 
@@ -86,6 +88,8 @@ public final class MainFrame extends JFrame implements Dashboard.Listener {
     private String openPackId;
     private Path createdFolder;
     private boolean loading;
+    private boolean checkingMinecraft;
+    private final javax.swing.Timer minecraftPoll = new javax.swing.Timer(MINECRAFT_POLL_MS, e -> checkMinecraft());
 
     public MainFrame() {
         super("GroidPack Updater");
@@ -108,6 +112,8 @@ public final class MainFrame extends JFrame implements Dashboard.Listener {
         setVisible(true);
         render(true);
         refresh();
+        checkMinecraft();
+        minecraftPoll.start();
         checkSoftwareUpdate();
     }
 
@@ -227,6 +233,47 @@ public final class MainFrame extends JFrame implements Dashboard.Listener {
         B2ClientProvider.reconnectToClient();
         PackArtwork.invalidate();
         refresh();
+    }
+
+    @Override
+    public void onCheckMinecraft() {
+        checkMinecraft();
+    }
+
+    public void checkMinecraft() {
+        boolean configured = MinecraftServerStatus.isConfigured();
+        dashboard.setMinecraftVisible(configured);
+        if (!configured || checkingMinecraft) {
+            return;
+        }
+        checkingMinecraft = true;
+        dashboard.setMinecraft(null, "Checking Minecraft Server", "Checking the Minecraft Server");
+        new SwingWorker<MinecraftServerStatus.Status, Void>() {
+            @Override
+            protected MinecraftServerStatus.Status doInBackground() {
+                return MinecraftServerStatus.check();
+            }
+
+            @Override
+            protected void done() {
+                checkingMinecraft = false;
+                MinecraftServerStatus.Status status;
+                try {
+                    status = get();
+                } catch (Exception e) {
+                    status = new MinecraftServerStatus.Status(false, 0, 0, "", "Minecraft Server offline");
+                }
+                if (status.running()) {
+                    String players = status.online() + "/" + status.max() + " players";
+                    String version = status.version().isEmpty() ? "" : " on " + status.version();
+                    dashboard.setMinecraft(true, "Minecraft Server online · " + status.online() + "/" + status.max(),
+                            "Minecraft is running: " + players + version + ". Click to check again.");
+                } else {
+                    dashboard.setMinecraft(false, status.message(),
+                            "Minecraft is not running. Click to check again.");
+                }
+            }
+        }.execute();
     }
 
     private void render(boolean animate) {

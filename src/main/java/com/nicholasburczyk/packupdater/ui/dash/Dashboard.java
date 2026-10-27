@@ -58,6 +58,8 @@ public final class Dashboard extends JPanel {
         void onTileSelected(String channel, int index);
 
         void onReconnect();
+
+        void onCheckMinecraft();
     }
 
     public record Channel(String id, String name, int badge) {
@@ -107,6 +109,9 @@ public final class Dashboard extends JPanel {
     private final JPanel center = new JPanel(cards);
     private final JLabel connectionText = Ui.label("Connecting", Theme.font(Font.BOLD, 12), Theme.TEXT_DIM);
     private final StatusLight statusLight = new StatusLight();
+    private final JLabel minecraftText = Ui.label("Minecraft", Theme.font(Font.BOLD, 12), Theme.TEXT_DIM);
+    private final StatusLight minecraftLight = new StatusLight();
+    private final JPanel minecraftCorner = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
     private final JButton adminLink;
     private BufferedImage backdrop;
     private BufferedImage vignette;
@@ -384,12 +389,25 @@ public final class Dashboard extends JPanel {
         corner.setBorder(Ui.pad(20, 0, 0, 26));
         corner.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         corner.setToolTipText("Click to reconnect");
+        corner.add(minecraftCorner);
         corner.add(connectionText);
         corner.add(statusLight);
         corner.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
                 listener.onReconnect();
+            }
+        });
+        minecraftCorner.setOpaque(false);
+        minecraftCorner.setBorder(Ui.pad(0, 0, 0, 14));
+        minecraftCorner.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        minecraftCorner.setToolTipText("Click to check the Minecraft Server");
+        minecraftCorner.add(minecraftText);
+        minecraftCorner.add(minecraftLight);
+        minecraftCorner.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                listener.onCheckMinecraft();
             }
         });
         JPanel cornerWrap = new JPanel(new BorderLayout());
@@ -525,6 +543,18 @@ public final class Dashboard extends JPanel {
         connectionText.setText(text);
         connectionText.setForeground(connected != null && !connected ? Theme.DANGER : Theme.TEXT_DIM);
         statusLight.repaint();
+    }
+
+    public void setMinecraft(Boolean running, String text, String tooltip) {
+        minecraftLight.color = running == null ? Theme.WARNING : running ? Theme.LIME : Theme.DANGER;
+        minecraftText.setText(text);
+        minecraftText.setForeground(running != null && !running ? Theme.DANGER : Theme.TEXT_DIM);
+        minecraftCorner.setToolTipText(tooltip);
+        minecraftLight.repaint();
+    }
+
+    public void setMinecraftVisible(boolean visible) {
+        minecraftCorner.setVisible(visible);
     }
 
     public void setAdminLabel(String text) {
